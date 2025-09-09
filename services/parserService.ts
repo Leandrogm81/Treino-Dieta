@@ -25,7 +25,8 @@ export const parseWorkoutText = (text: string): Omit<ExerciseTemplate, 'id'>[] =
 
 
 // Ex: - 3 ovos cozidos: 210 Kcal | 18g proteína | 1g carboidrato | 15g gordura
-const MEAL_REGEX = /-\s*(.+?):\s*(\d+(\.\d+)?)\s*Kcal\s*\|\s*(\d+(\.\d+)?)\s*g\s*proteína\s*\|\s*(\d+(\.\d+)?)\s*g\s*carboidrato\s*\|\s*(\d+(\.\d+)?)\s*g\s*gordura/i;
+// Handles optional leading dash, extra spaces, and optional 'g' for macros
+const MEAL_REGEX = /^\s*(?:-\s*)?(.+?):\s*(\d+(\.\d+)?)\s*Kcal\s*\|\s*(\d+(\.\d+)?)\s*g?\s*proteína\s*\|\s*(\d+(\.\d+)?)\s*g?\s*carboidrato\s*\|\s*(\d+(\.\d+)?)\s*g?\s*gordura/i;
 
 interface ParsedName {
     foodName: string;
@@ -118,7 +119,7 @@ const parseFoodName = (name: string): ParsedName => {
 
 
 export const parseNutritionText = (text: string): Omit<MealTemplate, 'id'>[] => {
-    const lines = text.split('\n').filter(line => line.trim().startsWith('-'));
+    const lines = text.split('\n').filter(line => line.trim() !== '');
     const meals: Omit<MealTemplate, 'id'>[] = [];
 
     for (const line of lines) {

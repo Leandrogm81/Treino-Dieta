@@ -26,6 +26,12 @@ const TrashIcon = (props: React.SVGProps<SVGSVGElement>) => (
     </svg>
 );
 
+const ListIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+);
+
 
 const MealSelectionModal: React.FC<{
     isOpen: boolean;
@@ -78,9 +84,17 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [isParsing, setIsParsing] = useState(false);
   const [parsingAttempted, setParsingAttempted] = useState(false);
   const isMobile = useIsMobile();
+  const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
 
   const mealTemplateNames = useMemo(() => mealTemplates.map(t => t.originalName), [mealTemplates]);
   
+  useEffect(() => {
+    if (feedback) {
+      const timer = setTimeout(() => setFeedback(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [feedback]);
+
   useEffect(() => {
     if (selectedTemplate) {
       const quantity = parseFloat(formData.quantity) || 0;
@@ -106,8 +120,8 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         setSelectedTemplate(null);
     }
 
-    if (name === 'name' && !isMobile) {
-        const foundTemplate = mealTemplates.find(t => t.originalName === value);
+    if (name === 'name') {
+        const foundTemplate = mealTemplates.find(t => t.originalName.toLowerCase() === value.toLowerCase());
         if (foundTemplate) {
             handleSelectTemplate(foundTemplate);
         } else {
@@ -139,6 +153,25 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       }
   }
 
+  const areMacrosSimilar = (
+    newMealData: { calories: number; quantity: number },
+    template: MealTemplate
+  ): boolean => {
+    if (newMealData.quantity <= 0 || template.servingSize <= 0) {
+      return true; // Tratar como similar se os dados forem inválidos para evitar a criação de modelos incorretos
+    }
+
+    const newMealCalPerUnit = newMealData.calories / newMealData.quantity;
+    const templateCalPerUnit = template.calories / template.servingSize;
+
+    if (templateCalPerUnit === 0 && newMealCalPerUnit === 0) return true;
+    if (templateCalPerUnit === 0 || newMealCalPerUnit === 0) return false;
+
+    const difference = Math.abs(newMealCalPerUnit - templateCalPerUnit) / templateCalPerUnit;
+    
+    return difference <= 0.1; // Considerar similar se a densidade calórica estiver dentro de uma margem de 10%
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const quantity = parseFloat(formData.quantity) || 0;
@@ -147,6 +180,8 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const fat = parseFloat(formData.fat) || 0;
     const carbs = parseFloat(formData.carbs) || 0;
     
+    if (formData.name.trim() === '' || quantity <= 0) return;
+
     const newMeal: Meal = {
       id: crypto.randomUUID(),
       userId: currentUser.id,
@@ -161,23 +196,42 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     };
     setMeals(prev => [...prev, newMeal]);
     
-    // Automatically save as a new template if it doesn't exist
     const normalizedNewName = normalizeName(formData.name);
-    const isExistingTemplate = mealTemplates.some(t => t.name === normalizedNewName);
+    const candidates = mealTemplates.filter(t => t.name === normalizedNewName);
 
-    if (!isExistingTemplate && formData.name.trim() !== '' && quantity > 0) {
-        const newTemplate: MealTemplate = {
-            id: crypto.randomUUID(),
-            originalName: formData.name.trim(),
-            name: normalizedNewName,
-            servingSize: quantity,
-            servingUnit: formData.unit,
-            calories,
-            protein,
-            fat,
-            carbs,
-        };
-        setMealTemplates(prev => [...prev, newTemplate]);
+    let createNewTemplate = false;
+    
+    if (candidates.length === 0) {
+      createNewTemplate = true;
+    } else {
+      const similarCandidate = candidates.find(c => areMacrosSimilar({ calories, quantity }, c));
+      if (!similarCandidate) {
+        createNewTemplate = true;
+      } else {
+        setFeedback({
+          message: `Refeição adicionada. O modelo '${similarCandidate.originalName}' foi utilizado.`,
+          type: 'info'
+        });
+      }
+    }
+
+    if (createNewTemplate && formData.name.trim() !== '') {
+      const newTemplate: MealTemplate = {
+        id: crypto.randomUUID(),
+        originalName: formData.name.trim(),
+        name: normalizedNewName,
+        servingSize: quantity,
+        servingUnit: formData.unit,
+        calories,
+        protein,
+        fat,
+        carbs,
+      };
+      setMealTemplates(prev => [...prev, newTemplate]);
+      setFeedback({
+        message: `Refeição adicionada e novo modelo '${newTemplate.originalName}' salvo!`,
+        type: 'success'
+      });
     }
 
     setFormData(initialFormState);
@@ -235,6 +289,11 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
   return (
     <div className="space-y-6">
+       {feedback && (
+        <div className={`fixed bottom-5 right-5 z-50 p-4 rounded-lg shadow-lg text-white ${feedback.type === 'success' ? 'bg-primary' : 'bg-secondary'}`}>
+          {feedback.message}
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Nutrição</h1>
         <Button onClick={openImportModal}>
@@ -247,14 +306,27 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         <Card className="lg:col-span-1">
           <h2 className="text-xl font-bold mb-4">Registrar Refeição</h2>
           <form onSubmit={handleSubmit} className="space-y-3">
-            <Input label="Alimento" name="name" value={formData.name} onChange={handleChange} required 
-              list={!isMobile ? "meal-templates" : undefined}
-              dataListOptions={!isMobile ? mealTemplateNames : undefined}
-              autoComplete="off"
-              readOnly={isMobile}
-              onClick={() => isMobile && setSelectionModalOpen(true)}
-              placeholder={isMobile ? "Toque para selecionar" : "Digite ou selecione"}
-            />
+             <div>
+                <label htmlFor="food-name" className="block text-sm font-medium text-text-secondary mb-1">Alimento</label>
+                <div className="relative">
+                    <Input id="food-name" name="name" value={formData.name} onChange={handleChange} required 
+                      list={isMobile ? undefined : 'meal-templates'}
+                      autoComplete="off"
+                      placeholder="Digite para buscar ou adicionar"
+                      className={isMobile ? 'pr-10' : ''}
+                    />
+                     {isMobile && (
+                        <button type="button" onClick={() => setSelectionModalOpen(true)} className="absolute inset-y-0 right-0 px-3 flex items-center text-text-secondary hover:text-primary" aria-label="Selecionar Alimento">
+                            <ListIcon className="w-5 h-5" />
+                        </button>
+                    )}
+                </div>
+                {!isMobile && (
+                    <datalist id="meal-templates">
+                        {mealTemplateNames.map(option => <option key={option} value={option} />)}
+                    </datalist>
+                )}
+            </div>
             <div className="grid grid-cols-2 gap-3">
                 <Input label="Quantidade" name="quantity" type="number" value={formData.quantity} onChange={handleChange} required onFocus={e => e.target.select()}/>
                 <Input label="Unidade" name="unit" value={formData.unit} onChange={handleChange} required/>

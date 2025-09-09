@@ -25,6 +25,12 @@ const TrashIcon = (props: React.SVGProps<SVGSVGElement>) => (
     </svg>
 );
 
+const ListIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+);
+
 
 const ExerciseSelectionModal: React.FC<{
     isOpen: boolean;
@@ -81,8 +87,8 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
 
-    if (name === 'name' && !isMobile) {
-        const selectedTemplate = exerciseTemplates.find(t => t.name === value);
+    if (name === 'name') {
+        const selectedTemplate = exerciseTemplates.find(t => t.name.toLowerCase() === value.toLowerCase());
         if (selectedTemplate) {
             handleSelectTemplate(selectedTemplate)
         } else {
@@ -209,15 +215,27 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         <Card className="lg:col-span-1">
           <h2 className="text-xl font-bold mb-4">Registrar Exercício</h2>
           <form onSubmit={handleSubmit} className="space-y-3">
-            <Input label="Exercício" name="name" value={formData.name} onChange={handleChange} required 
-                list={!isMobile ? "exercise-templates" : undefined}
-                dataListOptions={!isMobile ? exerciseTemplateNames : undefined}
-                autoComplete="off"
-                readOnly={isMobile}
-                onClick={() => isMobile && setSelectionModalOpen(true)}
-                onFocus={(e) => isMobile && e.target.blur()}
-                placeholder={isMobile ? "Toque para selecionar" : "Digite ou selecione"}
-            />
+            <div>
+                <label htmlFor="exercise-name" className="block text-sm font-medium text-text-secondary mb-1">Exercício</label>
+                <div className="relative">
+                    <Input id="exercise-name" name="name" value={formData.name} onChange={handleChange} required 
+                        list={isMobile ? undefined : 'exercise-templates'}
+                        autoComplete="off"
+                        placeholder="Digite para buscar ou adicionar"
+                        className={isMobile ? 'pr-10' : ''}
+                    />
+                    {isMobile && (
+                        <button type="button" onClick={() => setSelectionModalOpen(true)} className="absolute inset-y-0 right-0 px-3 flex items-center text-text-secondary hover:text-primary" aria-label="Selecionar Exercício">
+                            <ListIcon className="w-5 h-5" />
+                        </button>
+                    )}
+                </div>
+                 {!isMobile && (
+                    <datalist id="exercise-templates">
+                        {exerciseTemplateNames.map(option => <option key={option} value={option} />)}
+                    </datalist>
+                 )}
+            </div>
             <Input label="Séries" name="sets" type="number" value={formData.sets} onChange={handleChange} required onFocus={e => e.target.select()}/>
             <Input label="Repetições" name="reps" type="number" value={formData.reps} onChange={handleChange} required onFocus={e => e.target.select()}/>
             <Input label="Carga (kg)" name="load" type="number" value={formData.load} onChange={handleChange} required onFocus={e => e.target.select()}/>

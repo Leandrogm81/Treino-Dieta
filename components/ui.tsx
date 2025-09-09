@@ -32,22 +32,27 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   list?: string;
   dataListOptions?: string[];
 }
-export const Input: React.FC<InputProps> = ({ label, id, list, dataListOptions, ...props }) => (
-  <div>
-    {label && <label htmlFor={id} className="block text-sm font-medium text-text-secondary mb-1">{label}</label>}
-    <input
-      id={id}
-      list={list}
-      className="w-full bg-background border border-gray-600 rounded-md px-3 py-2 text-text-primary placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
-      {...props}
-    />
-    {list && dataListOptions && (
-      <datalist id={list}>
-        {dataListOptions.map(option => <option key={option} value={option} />)}
-      </datalist>
-    )}
-  </div>
-);
+export const Input: React.FC<InputProps> = ({ label, id, list, dataListOptions, className = '', ...props }) => {
+  const baseClasses = "w-full bg-background border border-gray-600 rounded-md px-3 py-2 text-text-primary placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary";
+  
+  return (
+    <div>
+      {label && <label htmlFor={id} className="block text-sm font-medium text-text-secondary mb-1">{label}</label>}
+      <input
+        id={id}
+        list={list}
+        className={`${baseClasses} ${className}`}
+        {...props}
+      />
+      {list && dataListOptions && (
+        <datalist id={list}>
+          {dataListOptions.map(option => <option key={option} value={option} />)}
+        </datalist>
+      )}
+    </div>
+  );
+};
+
 
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
