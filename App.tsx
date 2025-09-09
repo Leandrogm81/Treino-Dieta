@@ -1,6 +1,5 @@
 
-import React, from 'react';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { AuthView } from './components/Auth';
 import { Layout } from './components/Layout';
