@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Meal, MealTemplate } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Modal, Textarea, Spinner } from '../components/ui';
@@ -7,19 +7,35 @@ import { parseNutritionText } from '../services/parserService';
 import { ImportIcon } from '../constants';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-type MealFormData = Omit<Meal, 'id' | 'userId' | 'date'>;
-type ParsedMeal = MealTemplate & { tempId: number; selected: boolean };
+type MealFormData = {
+    name: string;
+    quantity: string;
+    unit: string;
+    calories: string;
+    protein: string;
+    fat: string;
+    carbs: string;
+};
+type ParsedMeal = Omit<MealTemplate, 'id'> & { tempId: number; selected: boolean };
 
-const initialFormState: MealFormData = { name: '', quantity: 0, unit: '', calories: 0, protein: 0, fat: 0, carbs: 0 };
+const initialFormState: MealFormData = { name: '', quantity: '1', unit: 'un', calories: '0', protein: '0', fat: '0', carbs: '0' };
+
+const TrashIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+);
+
 
 const MealSelectionModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
     templates: MealTemplate[];
     onSelect: (template: MealTemplate) => void;
-}> = ({ isOpen, onClose, templates, onSelect }) => {
+    onDelete: (templateId: string) => void;
+}> = ({ isOpen, onClose, templates, onSelect, onDelete }) => {
     const [searchTerm, setSearchTerm] = useState('');
-    const filteredTemplates = templates.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredTemplates = templates.filter(t => t.originalName.toLowerCase().includes(searchTerm.toLowerCase()));
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Selecionar Alimento">
@@ -31,14 +47,15 @@ const MealSelectionModal: React.FC<{
                     autoFocus
                 />
                 <ul className="max-h-64 overflow-y-auto space-y-2">
-                    {filteredTemplates.map((template, index) => (
-                        <li
-                            key={`${template.name}-${index}`}
-                            onClick={() => onSelect(template)}
-                            className="p-3 bg-background rounded-md hover:bg-gray-700 cursor-pointer"
-                        >
-                            <p className="font-semibold">{template.name}</p>
-                            <p className="text-sm text-text-secondary">{template.calories} kcal</p>
+                    {filteredTemplates.map((template) => (
+                        <li key={template.id} className="flex items-center justify-between p-3 bg-background rounded-md hover:bg-gray-700 group">
+                            <div onClick={() => onSelect(template)} className="flex-grow cursor-pointer">
+                                <p className="font-semibold">{template.originalName}</p>
+                                <p className="text-sm text-text-secondary">{template.calories} kcal / {template.servingSize} {template.servingUnit}</p>
+                            </div>
+                            <button onClick={() => onDelete(template.id)} className="ml-2 p-1 text-gray-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <TrashIcon className="w-5 h-5"/>
+                            </button>
                         </li>
                     ))}
                     {filteredTemplates.length === 0 && <li className="text-center text-text-secondary p-4">Nenhum modelo encontrado.</li>}
@@ -53,6 +70,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [meals, setMeals] = useLocalStorage<Meal[]>(`meals_${currentUser.id}`, []);
   const [mealTemplates, setMealTemplates] = useLocalStorage<MealTemplate[]>(`mealTemplates_${currentUser.id}`, []);
   const [formData, setFormData] = useState<MealFormData>(initialFormState);
+  const [selectedTemplate, setSelectedTemplate] = useState<MealTemplate | null>(null);
   const [isImportModalOpen, setImportModalOpen] = useState(false);
   const [isSelectionModalOpen, setSelectionModalOpen] = useState(false);
   const [importText, setImportText] = useState('');
@@ -61,43 +79,89 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [parsingAttempted, setParsingAttempted] = useState(false);
   const isMobile = useIsMobile();
 
-  const mealTemplateNames = useMemo(() => mealTemplates.map(t => t.name), [mealTemplates]);
+  const mealTemplateNames = useMemo(() => mealTemplates.map(t => t.originalName), [mealTemplates]);
+  
+  useEffect(() => {
+    if (selectedTemplate) {
+      const quantity = parseFloat(formData.quantity) || 0;
+      const base = selectedTemplate;
+      const ratio = quantity / base.servingSize;
+      
+      setFormData(prev => ({
+        ...prev,
+        calories: (base.calories * ratio).toFixed(0),
+        protein: (base.protein * ratio).toFixed(1),
+        fat: (base.fat * ratio).toFixed(1),
+        carbs: (base.carbs * ratio).toFixed(1),
+      }));
+    }
+  }, [formData.quantity, selectedTemplate]);
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
     
+    // Desvincular do template se macros forem editados manualmente
+    if (['calories', 'protein', 'fat', 'carbs'].includes(name) && selectedTemplate) {
+        setSelectedTemplate(null);
+    }
+
     if (name === 'name' && !isMobile) {
-        const selectedTemplate = mealTemplates.find(t => t.name === value);
-        if (selectedTemplate) {
-            setFormData(selectedTemplate);
+        const foundTemplate = mealTemplates.find(t => t.originalName === value);
+        if (foundTemplate) {
+            handleSelectTemplate(foundTemplate);
         } else {
+            setSelectedTemplate(null);
             setFormData(prev => ({ ...prev, [name]: value }));
         }
     } else {
-        setFormData(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
+        setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
   
   const handleSelectTemplate = (template: MealTemplate) => {
-    setFormData(template);
+    setSelectedTemplate(template);
+    setFormData({
+        name: template.originalName,
+        quantity: String(template.servingSize),
+        unit: template.servingUnit,
+        calories: String(template.calories),
+        protein: String(template.protein),
+        fat: String(template.fat),
+        carbs: String(template.carbs),
+    });
     setSelectionModalOpen(false);
   };
+  
+  const handleDeleteTemplate = (templateId: string) => {
+      if(window.confirm("Tem certeza que deseja apagar este modelo?")) {
+          setMealTemplates(prev => prev.filter(t => t.id !== templateId));
+      }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const newMeal: Meal = {
-      ...formData,
       id: crypto.randomUUID(),
       userId: currentUser.id,
       date: new Date().toISOString(),
+      name: formData.name,
+      quantity: parseFloat(formData.quantity) || 0,
+      unit: formData.unit,
+      calories: parseFloat(formData.calories) || 0,
+      protein: parseFloat(formData.protein) || 0,
+      fat: parseFloat(formData.fat) || 0,
+      carbs: parseFloat(formData.carbs) || 0,
     };
     setMeals(prev => [...prev, newMeal]);
     setFormData(initialFormState);
+    setSelectedTemplate(null);
   };
 
   const openImportModal = () => {
     setParsedMeals([]);
     setParsingAttempted(false);
+    setImportText('');
     setImportModalOpen(true);
   };
   
@@ -110,19 +174,19 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   }
 
   const handleSaveSelectedTemplates = () => {
-    const newTemplates = parsedMeals
+    const newTemplatesRaw = parsedMeals
         .filter(m => m.selected)
         .map(({ tempId, selected, ...mealData }) => mealData);
     
     setMealTemplates(prev => {
-        const existingNames = new Set(prev.map(t => t.name.toLowerCase()));
-        const uniqueNewTemplates = newTemplates.filter(t => !existingNames.has(t.name.toLowerCase()));
+        const existingNormalizedNames = new Set(prev.map(t => t.name));
+        const uniqueNewTemplates = newTemplatesRaw
+            .filter(t => !existingNormalizedNames.has(t.name))
+            .map(t => ({...t, id: crypto.randomUUID()}));
         return [...prev, ...uniqueNewTemplates];
     });
 
     setImportModalOpen(false);
-    setImportText('');
-    setParsedMeals([]);
   }
 
   const toggleParsedMealSelection = (tempId: number) => {
@@ -157,15 +221,16 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
               autoComplete="off"
               readOnly={isMobile}
               onClick={() => isMobile && setSelectionModalOpen(true)}
-              onFocus={(e) => isMobile && e.target.blur()}
               placeholder={isMobile ? "Toque para selecionar" : "Digite ou selecione"}
             />
-            <Input label="Quantidade" name="quantity" type="number" value={formData.quantity} onChange={handleChange} required/>
-            <Input label="Unidade (g, ml, un)" name="unit" value={formData.unit} onChange={handleChange} required/>
-            <Input label="Calorias" name="calories" type="number" value={formData.calories} onChange={handleChange} required/>
-            <Input label="Proteína (g)" name="protein" type="number" value={formData.protein} onChange={handleChange} required/>
-            <Input label="Gordura (g)" name="fat" type="number" value={formData.fat} onChange={handleChange} required/>
-            <Input label="Carboidratos (g)" name="carbs" type="number" value={formData.carbs} onChange={handleChange} required/>
+            <div className="grid grid-cols-2 gap-3">
+                <Input label="Quantidade" name="quantity" type="number" value={formData.quantity} onChange={handleChange} required onFocus={e => e.target.select()}/>
+                <Input label="Unidade" name="unit" value={formData.unit} onChange={handleChange} required/>
+            </div>
+            <Input label="Calorias" name="calories" type="number" value={formData.calories} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Proteína (g)" name="protein" type="number" value={formData.protein} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Gordura (g)" name="fat" type="number" value={formData.fat} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Carboidratos (g)" name="carbs" type="number" value={formData.carbs} onChange={handleChange} required onFocus={e => e.target.select()}/>
             <Button type="submit" className="w-full !mt-4">Adicionar Refeição</Button>
           </form>
         </Card>
@@ -223,12 +288,15 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             </Button>
             {parsedMeals.length > 0 && (
                 <div className="mt-4">
-                    <h3 className="font-semibold mb-2">Modelos encontrados:</h3>
-                    <div className="space-y-2 pr-2">
+                    <div className="flex justify-between items-center mb-2">
+                        <h3 className="font-semibold">Modelos encontrados:</h3>
+                        <Button variant="danger" onClick={() => setMealTemplates([])}>Apagar Todos</Button>
+                    </div>
+                    <div className="space-y-2 pr-2 max-h-60 overflow-y-auto">
                         {parsedMeals.map(meal => (
                            <div key={meal.tempId} className="flex items-center bg-background p-2 rounded-md">
                                 <input type="checkbox" checked={meal.selected} onChange={() => toggleParsedMealSelection(meal.tempId)} className="mr-3 h-5 w-5 rounded text-primary focus:ring-primary bg-surface border-gray-600"/>
-                                <p className="text-sm">{meal.name} ({meal.calories}kcal)</p>
+                                <label className="text-sm flex-grow" onClick={() => toggleParsedMealSelection(meal.tempId)}>{meal.originalName} ({meal.calories}kcal)</label>
                            </div>
                         ))}
                     </div>
@@ -239,7 +307,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             )}
         </div>
       </Modal>
-      {isMobile && <MealSelectionModal isOpen={isSelectionModalOpen} onClose={() => setSelectionModalOpen(false)} templates={mealTemplates} onSelect={handleSelectTemplate} />}
+      {isMobile && <MealSelectionModal isOpen={isSelectionModalOpen} onClose={() => setSelectionModalOpen(false)} templates={mealTemplates} onSelect={handleSelectTemplate} onDelete={handleDeleteTemplate} />}
     </div>
   );
 };

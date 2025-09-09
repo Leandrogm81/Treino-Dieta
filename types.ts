@@ -80,16 +80,19 @@ export interface AllUserData {
 
 // Modelos para autocompletar
 export interface MealTemplate {
-  name: string;
-  quantity: number;
-  unit: string;
-  calories: number;
-  protein: number;
-  fat: number;
-  carbs: number;
+  id: string;
+  name: string; // Normalized name for searching/matching
+  originalName: string; // Original name for display
+  calories: number; // per servingSize
+  protein: number; // per servingSize
+  fat: number; // per servingSize
+  carbs: number; // per servingSize
+  servingSize: number; // e.g., 100
+  servingUnit: string; // e.g., 'g' or 'un'
 }
 
 export interface ExerciseTemplate {
+  id: string;
   name: string;
   sets: number;
   reps: number;

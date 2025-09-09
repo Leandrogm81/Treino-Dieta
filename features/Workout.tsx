@@ -7,17 +7,32 @@ import { parseWorkoutText } from '../services/parserService';
 import { ImportIcon } from '../constants';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-type ExerciseFormData = Omit<Exercise, 'id' | 'userId' | 'date'>;
-type ParsedExercise = ExerciseTemplate & { tempId: number; selected: boolean; };
+type ExerciseFormData = {
+    name: string;
+    sets: string;
+    reps: string;
+    load: string;
+    technique: string;
+    notes: string;
+};
+type ParsedExercise = Omit<ExerciseTemplate, 'id'> & { tempId: number; selected: boolean; };
 
-const initialFormState: ExerciseFormData = { name: '', sets: 0, reps: 0, load: 0, technique: '', notes: '' };
+const initialFormState: ExerciseFormData = { name: '', sets: '3', reps: '10', load: '0', technique: '', notes: '' };
+
+const TrashIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+);
+
 
 const ExerciseSelectionModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
     templates: ExerciseTemplate[];
     onSelect: (template: ExerciseTemplate) => void;
-}> = ({ isOpen, onClose, templates, onSelect }) => {
+    onDelete: (templateId: string) => void;
+}> = ({ isOpen, onClose, templates, onSelect, onDelete }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const filteredTemplates = templates.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -31,14 +46,15 @@ const ExerciseSelectionModal: React.FC<{
                     autoFocus
                 />
                 <ul className="max-h-64 overflow-y-auto space-y-2">
-                    {filteredTemplates.map((template, index) => (
-                        <li
-                            key={`${template.name}-${index}`}
-                            onClick={() => onSelect(template)}
-                            className="p-3 bg-background rounded-md hover:bg-gray-700 cursor-pointer"
-                        >
-                            <p className="font-semibold">{template.name}</p>
-                            <p className="text-sm text-text-secondary">{template.sets}x, {template.notes}</p>
+                    {filteredTemplates.map((template) => (
+                        <li key={template.id} className="flex items-center justify-between p-3 bg-background rounded-md hover:bg-gray-700 group">
+                           <div onClick={() => onSelect(template)} className="flex-grow cursor-pointer">
+                                <p className="font-semibold">{template.name}</p>
+                                <p className="text-sm text-text-secondary">{template.sets}x, {template.notes}</p>
+                            </div>
+                             <button onClick={() => onDelete(template.id)} className="ml-2 p-1 text-gray-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <TrashIcon className="w-5 h-5"/>
+                            </button>
                         </li>
                     ))}
                     {filteredTemplates.length === 0 && <li className="text-center text-text-secondary p-4">Nenhum modelo encontrado.</li>}
@@ -63,47 +79,60 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const exerciseTemplateNames = useMemo(() => exerciseTemplates.map(t => t.name), [exerciseTemplates]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
 
     if (name === 'name' && !isMobile) {
         const selectedTemplate = exerciseTemplates.find(t => t.name === value);
         if (selectedTemplate) {
-            setFormData(prev => ({
-                ...prev,
-                ...selectedTemplate,
-                name: value,
-            }));
+            handleSelectTemplate(selectedTemplate)
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
     } else {
-        setFormData(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
+        setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
 
   const handleSelectTemplate = (template: ExerciseTemplate) => {
       setFormData(prev => ({
           ...prev, // Keep existing load
-          ...template,
+          name: template.name,
+          sets: String(template.sets),
+          reps: String(template.reps),
+          technique: template.technique || '',
+          notes: template.notes || '',
       }));
       setSelectionModalOpen(false);
   }
 
+  const handleDeleteTemplate = (templateId: string) => {
+    if (window.confirm("Tem certeza que deseja apagar este modelo?")) {
+        setExerciseTemplates(prev => prev.filter(t => t.id !== templateId));
+    }
+  };
+
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const newExercise: Exercise = {
-      ...formData,
       id: crypto.randomUUID(),
       userId: currentUser.id,
       date: new Date().toISOString(),
+      name: formData.name,
+      sets: parseFloat(formData.sets) || 0,
+      reps: parseFloat(formData.reps) || 0,
+      load: parseFloat(formData.load) || 0,
+      technique: formData.technique,
+      notes: formData.notes,
     };
     setExercises(prev => [...prev, newExercise]);
-    setFormData(initialFormState);
+    setFormData(prev => ({...initialFormState, name: prev.name})); // Keep name for next set
   };
 
   const openImportModal = () => {
     setParsedExercises([]);
     setParsingAttempted(false);
+    setImportText('');
     setImportModalOpen(true);
   };
 
@@ -116,19 +145,19 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   };
 
   const handleSaveSelectedTemplates = () => {
-    const newTemplates: ExerciseTemplate[] = parsedExercises
+    const newTemplatesRaw: Omit<ExerciseTemplate, 'id'>[] = parsedExercises
       .filter(ex => ex.selected)
       .map(({ tempId, selected, ...exData }) => exData);
     
     setExerciseTemplates(prev => {
         const existingNames = new Set(prev.map(t => t.name.toLowerCase()));
-        const uniqueNewTemplates = newTemplates.filter(t => !existingNames.has(t.name.toLowerCase()));
+        const uniqueNewTemplates = newTemplatesRaw
+            .filter(t => !existingNames.has(t.name.toLowerCase()))
+            .map(t => ({...t, id: crypto.randomUUID()}));
         return [...prev, ...uniqueNewTemplates];
     });
 
     setImportModalOpen(false);
-    setImportText('');
-    setParsedExercises([]);
   };
 
   const toggleParsedExerciseSelection = (tempId: number) => {
@@ -167,9 +196,9 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 onFocus={(e) => isMobile && e.target.blur()}
                 placeholder={isMobile ? "Toque para selecionar" : "Digite ou selecione"}
             />
-            <Input label="Séries" name="sets" type="number" value={formData.sets} onChange={handleChange} required/>
-            <Input label="Repetições" name="reps" type="number" value={formData.reps} onChange={handleChange} required/>
-            <Input label="Carga (kg)" name="load" type="number" value={formData.load} onChange={handleChange} required/>
+            <Input label="Séries" name="sets" type="number" value={formData.sets} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Repetições" name="reps" type="number" value={formData.reps} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Carga (kg)" name="load" type="number" value={formData.load} onChange={handleChange} required onFocus={e => e.target.select()}/>
             <Input label="Técnica" name="technique" value={formData.technique || ''} onChange={handleChange} />
             <Input label="Observações" name="notes" value={formData.notes || ''} onChange={handleChange} />
             <Button type="submit" className="w-full !mt-4">Adicionar Exercício</Button>
@@ -235,12 +264,15 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             </Button>
             {parsedExercises.length > 0 && (
                 <div className="mt-4">
-                    <h3 className="font-semibold mb-2">Modelos encontrados:</h3>
-                    <div className="space-y-2 pr-2">
+                    <div className="flex justify-between items-center mb-2">
+                         <h3 className="font-semibold">Modelos encontrados:</h3>
+                         <Button variant="danger" onClick={() => setExerciseTemplates([])}>Apagar Todos</Button>
+                    </div>
+                    <div className="space-y-2 pr-2 max-h-60 overflow-y-auto">
                         {parsedExercises.map(ex => (
                            <div key={ex.tempId} className="flex items-center bg-background p-2 rounded-md">
                                 <input type="checkbox" checked={ex.selected} onChange={() => toggleParsedExerciseSelection(ex.tempId)} className="mr-3 h-5 w-5 rounded text-primary focus:ring-primary bg-surface border-gray-600"/>
-                                <p className="text-sm">{ex.name} ({ex.sets}x, {ex.notes})</p>
+                                <label className="text-sm flex-grow" onClick={() => toggleParsedExerciseSelection(ex.tempId)}>{ex.name} ({ex.sets}x, {ex.notes})</label>
                            </div>
                         ))}
                     </div>
@@ -251,7 +283,7 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             )}
         </div>
       </Modal>
-      {isMobile && <ExerciseSelectionModal isOpen={isSelectionModalOpen} onClose={() => setSelectionModalOpen(false)} templates={exerciseTemplates} onSelect={handleSelectTemplate} />}
+      {isMobile && <ExerciseSelectionModal isOpen={isSelectionModalOpen} onClose={() => setSelectionModalOpen(false)} templates={exerciseTemplates} onSelect={handleSelectTemplate} onDelete={handleDeleteTemplate}/>}
     </div>
   );
 };

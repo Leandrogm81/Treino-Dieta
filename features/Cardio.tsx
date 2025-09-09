@@ -9,9 +9,15 @@ import { Card, Input, Button, Select } from '../components/ui';
 import { getTodayISO } from '../services/dataService';
 
 // FIX: Used renamed `CardioType`.
-type CardioFormData = Omit<CardioType, 'id' | 'userId' | 'date'>;
+type CardioFormData = {
+    type: string;
+    duration: string;
+    intensity: 'Baixa' | 'Média' | 'Alta';
+    calories: string;
+    speed: string;
+};
 
-const initialFormState: CardioFormData = { type: '', duration: 0, intensity: 'Média', calories: 0, speed: 0 };
+const initialFormState: CardioFormData = { type: '', duration: '30', intensity: 'Média', calories: '0', speed: '0' };
 
 export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   // FIX: Used renamed `CardioType`.
@@ -19,10 +25,10 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [formData, setFormData] = useState<CardioFormData>(initialFormState);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: (type === 'number') ? parseFloat(value) || 0 : value
+      [name]: value
     }));
   };
 
@@ -30,10 +36,14 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     e.preventDefault();
     // FIX: Used renamed `CardioType`.
     const newCardio: CardioType = {
-      ...formData,
       id: crypto.randomUUID(),
       userId: currentUser.id,
       date: new Date().toISOString(),
+      type: formData.type,
+      duration: parseFloat(formData.duration) || 0,
+      intensity: formData.intensity,
+      calories: parseFloat(formData.calories) || 0,
+      speed: parseFloat(formData.speed) || 0,
     };
     setCardio(prev => [...prev, newCardio]);
     setFormData(initialFormState);
@@ -49,14 +59,14 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
           <h2 className="text-xl font-bold mb-4">Registrar Atividade</h2>
           <form onSubmit={handleSubmit} className="space-y-3">
             <Input label="Tipo (Corrida, Caminhada, etc.)" name="type" value={formData.type} onChange={handleChange} required/>
-            <Input label="Duração (minutos)" name="duration" type="number" value={formData.duration} onChange={handleChange} required/>
+            <Input label="Duração (minutos)" name="duration" type="number" value={formData.duration} onChange={handleChange} required onFocus={e => e.target.select()}/>
             <Select label="Intensidade" name="intensity" value={formData.intensity} onChange={handleChange}>
               <option>Baixa</option>
               <option>Média</option>
               <option>Alta</option>
             </Select>
-            <Input label="Calorias Gastas" name="calories" type="number" value={formData.calories} onChange={handleChange} required/>
-            <Input label="Velocidade (km/h, opcional)" name="speed" type="number" value={formData.speed || ''} onChange={handleChange} />
+            <Input label="Calorias Gastas" name="calories" type="number" value={formData.calories} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Velocidade (km/h, opcional)" name="speed" type="number" value={formData.speed} onChange={handleChange} onFocus={e => e.target.select()}/>
             <Button type="submit" className="w-full mt-2">Adicionar</Button>
           </form>
         </Card>

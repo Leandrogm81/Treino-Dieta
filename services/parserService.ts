@@ -12,6 +12,7 @@ export const parseWorkoutText = (text: string): ExerciseTemplate[] => {
         if (match) {
             const [, name, sets, reps] = match;
             exercises.push({
+                id: crypto.randomUUID(),
                 name: name.trim(),
                 sets: parseInt(sets, 10) || 0,
                 reps: reps.toLowerCase() === 'falha' ? 0 : (parseInt(reps.split('-')[0], 10) || 0),
@@ -33,57 +34,68 @@ interface ParsedName {
     unit: string;
 }
 
-/**
- * Parses a food name string to extract the name, quantity, and unit.
- * Tries multiple patterns in a specific order to support various diet formats robustly.
- * @param name The raw food name string from the imported text.
- * @returns An object with the parsed foodName, quantity, and unit.
- */
+const normalizeName = (name: string): string => {
+  let normalized = name.toLowerCase().trim().replace(/\s+/g, ' ');
+  
+  // Specific pluralizations
+  if (normalized.endsWith('colheres')) normalized = normalized.replace(/es$/, '');
+  if (normalized.endsWith('ns')) normalized = normalized.slice(0, -2) + 'm';
+  if (normalized.endsWith('res')) normalized = normalized.slice(0, -3) + 'r';
+  
+  // General plural 's'
+  if (normalized.endsWith('s')) normalized = normalized.slice(0, -1);
+  
+  return normalized;
+};
+
 const parseFoodName = (name: string): ParsedName => {
     const originalName = name.trim();
+    const unitsRegex = /(g|ml|un|unidade|colher|concha)/i;
 
-    // Pattern 1: Handles "30g de castanhas" or "100ml de leite"
-    // This pattern is checked first due to its explicit structure.
-    const dePattern = /^(\d+[\.,]?\d*)\s*([a-zA-Z]+)\s+(?:de|da|do|das|dos)\s+(.+)/i;
+    // Pattern for complex recipes - treat as single unit
+    if (originalName.includes('+') || originalName.match(/\d/g)?.length > 2) {
+         return { foodName: originalName, quantity: 1, unit: 'un' };
+    }
+
+    // Pattern 1: Handles "30g de castanhas" or "2 colheres de azeite"
+    const dePattern = /^(\d+[\.,]?\d*)\s*([a-zA-Zç]+)\s+(?:de|da|do|das|dos)\s+(.+)/i;
     const deMatch = originalName.match(dePattern);
     if (deMatch) {
         return {
             quantity: parseFloat(deMatch[1].replace(',', '.')) || 1,
-            unit: deMatch[2].toLowerCase(),
+            unit: deMatch[2].toLowerCase().replace(/s$/, ''),
             foodName: deMatch[3].trim(),
         };
     }
 
-    // Pattern 2: Handles "Arroz integral (100g cozido)" or "Frango (150g)"
-    // Avoids complex recipes like "(150g carne + 100g abóbora)"
+    // Pattern 2: Handles "Arroz integral (100g cozido)"
     const parenPattern = /\(([^)]+)\)/;
     const parenMatch = originalName.match(parenPattern);
-    if (parenMatch && parenMatch.index !== undefined) {
+    if (parenMatch) {
         const insideParens = parenMatch[1];
-        const isComplexRecipe = insideParens.includes('+') || (insideParens.match(/\d/g) || []).length > 1;
+        const quantUnitPattern = /(\d+[\.,]?\d*)\s*([a-zA-Zç]+)/;
+        const quantUnitMatch = insideParens.match(quantUnitPattern);
 
-        if (!isComplexRecipe) {
-            const quantUnitPattern = /(\d+[\.,]?\d*)\s*([a-zA-Z]+)/;
-            const quantUnitMatch = insideParens.match(quantUnitPattern);
-
-            if (quantUnitMatch) {
-                const quantity = parseFloat(quantUnitMatch[1].replace(',', '.')) || 1;
-                const unit = quantUnitMatch[2].toLowerCase();
-                
-                const restInsideParens = insideParens.replace(quantUnitMatch[0], '').trim();
-                const nameOutsideParens = originalName.substring(0, parenMatch.index).trim();
-                
-                const foodName = restInsideParens ? `${nameOutsideParens} (${restInsideParens})` : nameOutsideParens;
-
-                return { foodName: foodName.trim(), quantity, unit };
-            }
+        if (quantUnitMatch) {
+            const quantity = parseFloat(quantUnitMatch[1].replace(',', '.')) || 1;
+            const unit = quantUnitMatch[2].toLowerCase().replace(/s$/, '');
+            const nameOutsideParens = originalName.replace(parenPattern, '').trim();
+            return { foodName: nameOutsideParens, quantity, unit };
         }
     }
     
-    // Pattern 3: Handles "3 ovos" or "2 bananas" (quantity at the start)
-    const quantFirstPattern = /^(\d+[\.,]?\d*)\s+([a-zA-Z].*)/;
+    // Pattern 3: Handles "3 ovos"
+    const quantFirstPattern = /^(\d+[\.,]?\d*)\s+(.+)/;
     const quantFirstMatch = originalName.match(quantFirstPattern);
     if (quantFirstMatch) {
+        let potentialUnit = quantFirstMatch[2].split(' ')[0].toLowerCase();
+        if (unitsRegex.test(potentialUnit)) {
+             return {
+                quantity: parseFloat(quantFirstMatch[1].replace(',', '.')) || 1,
+                unit: potentialUnit.replace(/s$/, ''),
+                foodName: quantFirstMatch[2].substring(potentialUnit.length).trim(),
+            };
+        }
         return {
             quantity: parseFloat(quantFirstMatch[1].replace(',', '.')) || 1,
             unit: 'un',
@@ -91,14 +103,13 @@ const parseFoodName = (name: string): ParsedName => {
         };
     }
 
-    // Fallback for complex names or unmatched patterns, treating it as a single unit.
     return { foodName: originalName, quantity: 1, unit: 'un' };
 };
 
 
-export const parseNutritionText = (text: string): MealTemplate[] => {
+export const parseNutritionText = (text: string): Omit<MealTemplate, 'id'>[] => {
     const lines = text.split('\n').filter(line => line.trim().startsWith('-'));
-    const meals: MealTemplate[] = [];
+    const meals: Omit<MealTemplate, 'id'>[] = [];
 
     for (const line of lines) {
         const match = line.match(MEAL_REGEX);
@@ -113,15 +124,20 @@ export const parseNutritionText = (text: string): MealTemplate[] => {
             ] = match;
             
             const { foodName, quantity, unit } = parseFoodName(name);
+            const totalCalories = parseFloat(calories) || 0;
+            const totalProtein = parseFloat(protein) || 0;
+            const totalCarbs = parseFloat(carbs) || 0;
+            const totalFat = parseFloat(fat) || 0;
 
             meals.push({
-                name: foodName,
-                quantity: quantity,
-                unit: unit,
-                calories: parseFloat(calories) || 0,
-                protein: parseFloat(protein) || 0,
-                carbs: parseFloat(carbs) || 0,
-                fat: parseFloat(fat) || 0,
+                originalName: foodName,
+                name: normalizeName(foodName),
+                servingSize: quantity,
+                servingUnit: unit,
+                calories: totalCalories,
+                protein: totalProtein,
+                carbs: totalCarbs,
+                fat: totalFat,
             });
         }
     }
