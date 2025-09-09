@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import type { User } from '../types';
 import { NAV_ITEMS } from '../constants';
 import type { NavItemType } from '../constants';
@@ -14,8 +14,8 @@ interface LayoutProps {
 
 const Sidebar: React.FC<Omit<LayoutProps, 'children'>> = ({ currentUser, logout, activePage, setActivePage }) => {
   return (
-    <aside className="w-64 bg-surface text-text-primary flex flex-col p-4">
-      <div className="text-2xl font-bold text-primary mb-8">FitTrack AI</div>
+    <aside className="w-64 bg-surface text-text-primary flex-col p-4 hidden md:flex">
+      <div className="text-2xl font-bold text-primary mb-8">FitTrack</div>
       <nav className="flex-grow">
         <ul>
           {NAV_ITEMS.map(item => (
@@ -44,13 +44,32 @@ const Sidebar: React.FC<Omit<LayoutProps, 'children'>> = ({ currentUser, logout,
   );
 };
 
+const BottomNav: React.FC<Omit<LayoutProps, 'children' | 'logout' | 'currentUser'>> = ({ activePage, setActivePage }) => {
+    return (
+        <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-gray-700 flex justify-around md:hidden z-10">
+            {NAV_ITEMS.map(item => (
+                <a
+                    href="#"
+                    key={item.name}
+                    onClick={(e) => { e.preventDefault(); setActivePage(item.name); }}
+                    className={`flex flex-col items-center justify-center p-2 w-full transition-colors ${activePage === item.name ? 'text-primary' : 'text-text-secondary hover:text-primary'}`}
+                >
+                    {item.icon}
+                    <span className="text-xs mt-1">{item.name}</span>
+                </a>
+            ))}
+        </nav>
+    );
+}
+
 export const Layout: React.FC<LayoutProps> = ({ children, ...props }) => {
   return (
     <div className="flex h-screen bg-background text-text-primary">
       <Sidebar {...props} />
-      <main className="flex-1 p-8 overflow-y-auto">
+      <main className="flex-1 p-4 sm:p-8 overflow-y-auto pb-20 md:pb-8">
         {children}
       </main>
+      <BottomNav activePage={props.activePage} setActivePage={props.setActivePage} />
     </div>
   );
 };

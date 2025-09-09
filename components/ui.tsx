@@ -6,7 +6,7 @@ interface CardProps {
   className?: string;
 }
 export const Card: React.FC<CardProps> = ({ children, className = '' }) => (
-  <div className={`bg-surface p-6 rounded-lg shadow-lg ${className}`}>
+  <div className={`bg-surface p-4 sm:p-6 rounded-lg shadow-lg ${className}`}>
     {children}
   </div>
 );
@@ -15,7 +15,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger';
 }
 export const Button: React.FC<ButtonProps> = ({ children, className = '', variant = 'primary', ...props }) => {
-  const baseClasses = 'px-4 py-2 rounded-md font-semibold text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+  const baseClasses = 'px-4 py-2 rounded-md font-semibold text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center';
   const variantClasses = {
     primary: 'bg-primary hover:bg-primary-focus focus:ring-primary',
     secondary: 'bg-secondary hover:bg-indigo-600 focus:ring-secondary',
@@ -30,17 +30,40 @@ export const Button: React.FC<ButtonProps> = ({ children, className = '', varian
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
+  list?: string;
+  dataListOptions?: string[];
 }
-export const Input: React.FC<InputProps> = ({ label, id, ...props }) => (
+export const Input: React.FC<InputProps> = ({ label, id, list, dataListOptions, ...props }) => (
   <div>
     {label && <label htmlFor={id} className="block text-sm font-medium text-text-secondary mb-1">{label}</label>}
     <input
+      id={id}
+      list={list}
+      className="w-full bg-background border border-gray-600 rounded-md px-3 py-2 text-text-primary placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
+      {...props}
+    />
+    {list && dataListOptions && (
+      <datalist id={list}>
+        {dataListOptions.map(option => <option key={option} value={option} />)}
+      </datalist>
+    )}
+  </div>
+);
+
+interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  label?: string;
+}
+export const Textarea: React.FC<TextareaProps> = ({ label, id, ...props }) => (
+  <div>
+    {label && <label htmlFor={id} className="block text-sm font-medium text-text-secondary mb-1">{label}</label>}
+    <textarea
       id={id}
       className="w-full bg-background border border-gray-600 rounded-md px-3 py-2 text-text-primary placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
       {...props}
     />
   </div>
 );
+
 
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
@@ -69,11 +92,11 @@ interface ModalProps {
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-surface rounded-lg shadow-xl p-6 w-full max-w-md m-4">
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+      <div className="bg-surface rounded-lg shadow-xl p-6 w-full max-w-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-text-primary">{title}</h2>
-          <button onClick={onClose} className="text-text-secondary hover:text-text-primary">&times;</button>
+          <button onClick={onClose} className="text-text-secondary hover:text-text-primary text-2xl leading-none">&times;</button>
         </div>
         <div>{children}</div>
       </div>
@@ -82,5 +105,5 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
 };
 
 export const Spinner: React.FC = () => (
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
 );

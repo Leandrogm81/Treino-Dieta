@@ -33,12 +33,19 @@ const ProgressIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+export const ImportIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+);
+
+
 export const NAV_ITEMS = [
-  { name: 'Dashboard', icon: <HomeIcon className="w-5 h-5" /> },
-  { name: 'Nutrição', icon: <NutritionIcon className="w-5 h-5" /> },
-  { name: 'Treino', icon: <WorkoutIcon className="w-5 h-5" /> },
-  { name: 'Cardio', icon: <CardioIcon className="w-5 h-5" /> },
-  { name: 'Progresso', icon: <ProgressIcon className="w-5 h-5" /> },
+  { name: 'Dashboard', icon: <HomeIcon className="w-6 h-6" /> },
+  { name: 'Nutrição', icon: <NutritionIcon className="w-6 h-6" /> },
+  { name: 'Treino', icon: <WorkoutIcon className="w-6 h-6" /> },
+  { name: 'Cardio', icon: <CardioIcon className="w-6 h-6" /> },
+  { name: 'Progresso', icon: <ProgressIcon className="w-6 h-6" /> },
 ] as const;
 
 export type NavItemType = typeof NAV_ITEMS[number]['name'];

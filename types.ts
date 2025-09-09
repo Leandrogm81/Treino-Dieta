@@ -33,7 +33,7 @@ export interface Exercise {
 }
 
 export interface Cardio {
-  id: string;
+  id:string;
   userId: string;
   date: string; // ISO string
   type: string;
@@ -69,4 +69,23 @@ export interface AllUserData {
     exercises: Exercise[];
     cardio: Cardio[];
     progress: ProgressLog[];
+}
+
+// Modelos para autocompletar
+export interface MealTemplate {
+  name: string;
+  quantity: number;
+  unit: string;
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+}
+
+export interface ExerciseTemplate {
+  name: string;
+  sets: number;
+  reps: number;
+  technique?: string;
+  notes?: string;
 }

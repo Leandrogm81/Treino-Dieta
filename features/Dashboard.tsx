@@ -9,7 +9,7 @@ import { Card } from '../components/ui';
 const SummaryCard: React.FC<{ title: string; value: string; color: string }> = ({ title, value, color }) => (
   <Card className="text-center">
     <h3 className="text-lg text-text-secondary">{title}</h3>
-    <p className={`text-4xl font-bold ${color}`}>{value}</p>
+    <p className={`text-3xl sm:text-4xl font-bold ${color}`}>{value}</p>
   </Card>
 );
 
@@ -40,14 +40,14 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
   const chartData = progress
     .map(p => ({
-      date: new Date(p.date).toLocaleDateString('pt-BR'),
+      date: new Date(p.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
       peso: p.weight,
     }))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-4xl font-bold text-text-primary">Dashboard</h1>
+    <div className="space-y-6">
+      <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Dashboard</h1>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <SummaryCard title="Calorias Ingeridas" value={caloriesIn.toLocaleString('pt-BR')} color="text-green-400" />
@@ -67,7 +67,7 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#4b5563" />
             <XAxis dataKey="date" stroke="#9ca3af" />
-            <YAxis stroke="#9ca3af" unit="kg" />
+            <YAxis stroke="#9ca3af" unit="kg" domain={['dataMin - 2', 'dataMax + 2']} />
             <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #4b5563' }} />
             <Legend />
             <Line type="monotone" dataKey="peso" stroke="#14b8a6" strokeWidth={2} activeDot={{ r: 8 }} />

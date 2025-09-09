@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 // FIX: Renamed imported type `Cardio` to `CardioType` to resolve name collision
 // with the `Cardio` component defined in this file.
@@ -42,7 +43,7 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-4xl font-bold text-text-primary">Cardio</h1>
+      <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Cardio</h1>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-1">
           <h2 className="text-xl font-bold mb-4">Registrar Atividade</h2>

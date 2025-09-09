@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { User, ProgressLog, Exercise, Meal, Cardio, AllUserData } from '../types';
@@ -25,14 +26,14 @@ const ProgressTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         if (!selectedExercise) return [];
         return exercises
             .filter(e => e.name === selectedExercise)
-            .map(e => ({ date: new Date(e.date).toLocaleDateString('pt-BR'), Carga: e.load }))
+            .map(e => ({ date: new Date(e.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), Carga: e.load }))
             .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [selectedExercise, exercises]);
 
     const volumeData = useMemo(() => {
         const volumeByDate: { [date: string]: number } = {};
         exercises.forEach(e => {
-            const date = new Date(e.date).toLocaleDateString('pt-BR');
+            const date = new Date(e.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
             const volume = (volumeByDate[date] || 0) + (e.sets * e.reps * e.load);
             volumeByDate[date] = volume;
         });
@@ -67,7 +68,7 @@ const ProgressTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                             <LineChart data={loadProgressionData}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#4b5563" />
                                 <XAxis dataKey="date" stroke="#9ca3af" />
-                                <YAxis stroke="#9ca3af" unit="kg" />
+                                <YAxis stroke="#9ca3af" unit="kg" domain={['dataMin - 5', 'dataMax + 5']} />
                                 <Tooltip contentStyle={{ backgroundColor: '#1f2937' }} />
                                 <Line type="monotone" dataKey="Carga" stroke="#6366f1" />
                             </LineChart>
@@ -207,9 +208,9 @@ export const Analysis: React.FC<{ currentUser: User, allUsers: User[], createUse
 
   return (
     <div className="space-y-6">
-      <h1 className="text-4xl font-bold text-text-primary">Análise e Mais</h1>
+      <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Análise e Mais</h1>
       <div className="border-b border-gray-700">
-        <nav className="-mb-px flex space-x-6">
+        <nav className="-mb-px flex space-x-6 overflow-x-auto">
           {TABS.map(tab => (
             <button
               key={tab}
