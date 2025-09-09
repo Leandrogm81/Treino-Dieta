@@ -4,7 +4,7 @@ import { useAuth } from './hooks/useAuth';
 import { AuthView } from './components/Auth';
 import { Layout } from './components/Layout';
 import { Dashboard } from './features/Dashboard';
-import { Nutrition } from './features/Nutrition';
+import { Nutrition } from './Nutrition';
 import { Workout } from './features/Workout';
 import { Cardio } from './features/Cardio';
 import { Analysis } from './features/Analysis';
