@@ -99,7 +99,8 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     if (selectedTemplate) {
       const quantity = parseFloat(formData.quantity) || 0;
       const base = selectedTemplate;
-      const ratio = quantity / base.servingSize;
+      // FIX: Check for servingSize > 0 to prevent division by zero.
+      const ratio = base.servingSize > 0 ? quantity / base.servingSize : 0;
       
       setFormData(prev => ({
         ...prev,
