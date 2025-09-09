@@ -19,6 +19,13 @@ type CardioFormData = {
 
 const initialFormState: CardioFormData = { type: '', duration: '30', intensity: 'Média', calories: '0', speed: '0' };
 
+const TrashIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+);
+
+
 export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   // FIX: Used renamed `CardioType`.
   const [cardio, setCardio] = useLocalStorage<CardioType[]>(`cardio_${currentUser.id}`, []);
@@ -47,6 +54,12 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     };
     setCardio(prev => [...prev, newCardio]);
     setFormData(initialFormState);
+  };
+
+  const handleDeleteCardio = (cardioId: string) => {
+    if (window.confirm("Tem certeza que deseja apagar esta atividade?")) {
+        setCardio(prev => prev.filter(c => c.id !== cardioId));
+    }
   };
 
   const todayCardio = cardio.filter(c => c.date.startsWith(getTodayISO()));
@@ -81,6 +94,7 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                   <th className="p-2">Duração</th>
                   <th className="p-2">Kcal</th>
                   <th className="p-2">Velocidade</th>
+                  <th className="p-2"></th>
                 </tr>
               </thead>
               <tbody>
@@ -90,15 +104,20 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     <td className="p-2">{c.duration} min</td>
                     <td className="p-2">{c.calories}</td>
                     <td className="p-2">{c.speed ? `${c.speed} km/h` : '-'}</td>
+                    <td className="p-2 text-right">
+                        <button onClick={() => handleDeleteCardio(c.id)} className="text-gray-500 hover:text-red-500 p-1">
+                           <TrashIcon className="w-5 h-5" />
+                        </button>
+                    </td>
                   </tr>
                 ))}
-                {todayCardio.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-text-secondary">Nenhuma atividade de cardio registrada hoje.</td></tr>}
+                {todayCardio.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-text-secondary">Nenhuma atividade de cardio registrada hoje.</td></tr>}
               </tbody>
             </table>
           </div>
            <div className="space-y-3 md:hidden">
               {todayCardio.length > 0 ? todayCardio.map(c => (
-                  <Card key={c.id} className="p-3 !bg-background">
+                  <Card key={c.id} className="p-3 !bg-background relative group">
                        <div className="flex justify-between items-start">
                           <div>
                               <p className="font-bold text-text-primary">{c.type}</p>
@@ -109,6 +128,9 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                               {c.speed ? <p className="text-xs text-gray-500">{c.speed} km/h</p> : ''}
                           </div>
                       </div>
+                      <button onClick={() => handleDeleteCardio(c.id)} className="absolute top-2 right-2 text-gray-500 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity">
+                        <TrashIcon className="w-5 h-5"/>
+                      </button>
                   </Card>
               )) : (
                   <p className="p-4 text-center text-text-secondary">Nenhuma atividade registrada hoje.</p>

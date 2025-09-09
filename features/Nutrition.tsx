@@ -3,7 +3,7 @@ import type { User, Meal, MealTemplate } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Modal, Textarea, Spinner } from '../components/ui';
 import { getTodayISO } from '../services/dataService';
-import { parseNutritionText } from '../services/parserService';
+import { parseNutritionText, normalizeName } from '../services/parserService';
 import { ImportIcon } from '../constants';
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -141,21 +141,53 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const quantity = parseFloat(formData.quantity) || 0;
+    const calories = parseFloat(formData.calories) || 0;
+    const protein = parseFloat(formData.protein) || 0;
+    const fat = parseFloat(formData.fat) || 0;
+    const carbs = parseFloat(formData.carbs) || 0;
+    
     const newMeal: Meal = {
       id: crypto.randomUUID(),
       userId: currentUser.id,
       date: new Date().toISOString(),
       name: formData.name,
-      quantity: parseFloat(formData.quantity) || 0,
+      quantity,
       unit: formData.unit,
-      calories: parseFloat(formData.calories) || 0,
-      protein: parseFloat(formData.protein) || 0,
-      fat: parseFloat(formData.fat) || 0,
-      carbs: parseFloat(formData.carbs) || 0,
+      calories,
+      protein,
+      fat,
+      carbs,
     };
     setMeals(prev => [...prev, newMeal]);
+    
+    // Automatically save as a new template if it doesn't exist
+    const normalizedNewName = normalizeName(formData.name);
+    const isExistingTemplate = mealTemplates.some(t => t.name === normalizedNewName);
+
+    if (!isExistingTemplate && formData.name.trim() !== '' && quantity > 0) {
+        const newTemplate: MealTemplate = {
+            id: crypto.randomUUID(),
+            originalName: formData.name.trim(),
+            name: normalizedNewName,
+            servingSize: quantity,
+            servingUnit: formData.unit,
+            calories,
+            protein,
+            fat,
+            carbs,
+        };
+        setMealTemplates(prev => [...prev, newTemplate]);
+    }
+
     setFormData(initialFormState);
     setSelectedTemplate(null);
+  };
+
+  const handleDeleteMeal = (mealId: string) => {
+    if (window.confirm("Tem certeza que deseja apagar esta refeição?")) {
+        setMeals(prev => prev.filter(m => m.id !== mealId));
+    }
   };
 
   const openImportModal = () => {
@@ -245,6 +277,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                   <th className="p-2">Qtd</th>
                   <th className="p-2">Kcal</th>
                   <th className="p-2">P/G/C (g)</th>
+                  <th className="p-2"></th>
                 </tr>
               </thead>
               <tbody>
@@ -254,18 +287,26 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     <td className="p-2">{meal.quantity} {meal.unit}</td>
                     <td className="p-2">{meal.calories}</td>
                     <td className="p-2">{meal.protein}/{meal.fat}/{meal.carbs}</td>
+                    <td className="p-2 text-right">
+                        <button onClick={() => handleDeleteMeal(meal.id)} className="text-gray-500 hover:text-red-500 p-1">
+                            <TrashIcon className="w-5 h-5" />
+                        </button>
+                    </td>
                   </tr>
                 ))}
-                {todayMeals.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-text-secondary">Nenhuma refeição registrada hoje.</td></tr>}
+                {todayMeals.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-text-secondary">Nenhuma refeição registrada hoje.</td></tr>}
               </tbody>
             </table>
           </div>
            <div className="space-y-3 md:hidden">
               {todayMeals.length > 0 ? todayMeals.map(meal => (
-                  <Card key={meal.id} className="p-3 !bg-background">
+                  <Card key={meal.id} className="p-3 !bg-background relative group">
                       <p className="font-bold text-text-primary">{meal.name}</p>
                       <p className="text-sm text-text-secondary">{meal.quantity} {meal.unit} - {meal.calories} kcal</p>
                       <p className="text-xs text-gray-500">P: {meal.protein}g / G: {meal.fat}g / C: {meal.carbs}g</p>
+                      <button onClick={() => handleDeleteMeal(meal.id)} className="absolute top-2 right-2 text-gray-500 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity">
+                        <TrashIcon className="w-5 h-5"/>
+                      </button>
                   </Card>
               )) : (
                   <p className="p-4 text-center text-text-secondary">Nenhuma refeição registrada hoje.</p>
@@ -290,7 +331,11 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 <div className="mt-4">
                     <div className="flex justify-between items-center mb-2">
                         <h3 className="font-semibold">Modelos encontrados:</h3>
-                        <Button variant="danger" onClick={() => setMealTemplates([])}>Apagar Todos</Button>
+                        <Button variant="danger" onClick={() => {
+                            if (window.confirm("Tem certeza que deseja apagar TODOS os modelos de refeição? Esta ação não pode ser desfeita.")) {
+                                setMealTemplates([]);
+                            }
+                        }}>Apagar Todos</Button>
                     </div>
                     <div className="space-y-2 pr-2 max-h-60 overflow-y-auto">
                         {parsedMeals.map(meal => (

@@ -126,7 +126,29 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       notes: formData.notes,
     };
     setExercises(prev => [...prev, newExercise]);
+    
+    const normalizedName = formData.name.trim().toLowerCase();
+    const isExistingTemplate = exerciseTemplates.some(t => t.name.toLowerCase() === normalizedName);
+
+    if (!isExistingTemplate && normalizedName !== '') {
+        const newTemplate: ExerciseTemplate = {
+            id: crypto.randomUUID(),
+            name: formData.name.trim(),
+            sets: parseInt(formData.sets, 10) || 0,
+            reps: parseInt(formData.reps, 10) || 0,
+            technique: formData.technique,
+            notes: formData.notes,
+        };
+        setExerciseTemplates(prev => [...prev, newTemplate]);
+    }
+
     setFormData(prev => ({...initialFormState, name: prev.name})); // Keep name for next set
+  };
+
+  const handleDeleteExercise = (exerciseId: string) => {
+    if (window.confirm("Tem certeza que deseja apagar este exercício?")) {
+        setExercises(prev => prev.filter(e => e.id !== exerciseId));
+    }
   };
 
   const openImportModal = () => {
@@ -215,6 +237,7 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                   <th className="p-2">Séries x Reps</th>
                   <th className="p-2">Carga</th>
                   <th className="p-2">Notas</th>
+                  <th className="p-2"></th>
                 </tr>
               </thead>
               <tbody>
@@ -224,15 +247,20 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     <td className="p-2">{ex.sets} x {ex.reps}</td>
                     <td className="p-2">{ex.load} kg</td>
                     <td className="p-2">{ex.technique || ex.notes}</td>
+                    <td className="p-2 text-right">
+                        <button onClick={() => handleDeleteExercise(ex.id)} className="text-gray-500 hover:text-red-500 p-1">
+                            <TrashIcon className="w-5 h-5" />
+                        </button>
+                    </td>
                   </tr>
                 ))}
-                {todayExercises.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-text-secondary">Nenhum exercício registrado hoje.</td></tr>}
+                {todayExercises.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-text-secondary">Nenhum exercício registrado hoje.</td></tr>}
               </tbody>
             </table>
           </div>
           <div className="space-y-3 md:hidden">
               {todayExercises.length > 0 ? todayExercises.map(ex => (
-                  <Card key={ex.id} className="p-3 !bg-background">
+                  <Card key={ex.id} className="p-3 !bg-background relative group">
                       <div className="flex justify-between items-start">
                           <div>
                               <p className="font-bold text-text-primary">{ex.name}</p>
@@ -241,6 +269,9 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                           </div>
                           <p className="font-semibold text-primary">{ex.load} kg</p>
                       </div>
+                      <button onClick={() => handleDeleteExercise(ex.id)} className="absolute top-2 right-2 text-gray-500 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity">
+                        <TrashIcon className="w-5 h-5"/>
+                      </button>
                   </Card>
               )) : (
                   <p className="p-4 text-center text-text-secondary">Nenhum exercício registrado hoje.</p>
@@ -266,7 +297,11 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 <div className="mt-4">
                     <div className="flex justify-between items-center mb-2">
                          <h3 className="font-semibold">Modelos encontrados:</h3>
-                         <Button variant="danger" onClick={() => setExerciseTemplates([])}>Apagar Todos</Button>
+                         <Button variant="danger" onClick={() => {
+                            if (window.confirm("Tem certeza que deseja apagar TODOS os modelos de treino? Esta ação não pode ser desfeita.")) {
+                                setExerciseTemplates([]);
+                            }
+                         }}>Apagar Todos</Button>
                     </div>
                     <div className="space-y-2 pr-2 max-h-60 overflow-y-auto">
                         {parsedExercises.map(ex => (

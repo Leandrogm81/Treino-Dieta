@@ -33,7 +33,7 @@ interface ParsedName {
     unit: string;
 }
 
-const normalizeName = (name: string): string => {
+export const normalizeName = (name: string): string => {
   let normalized = name.toLowerCase().trim()
     .replace(/\s+/g, ' ')
     .trim();
