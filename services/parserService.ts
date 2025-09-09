@@ -3,16 +3,15 @@ import type { MealTemplate, ExerciseTemplate } from '../types';
 // Ex: Supino Reto Barra 4x6-10
 const WORKOUT_REGEX = /(.+?)\s+(\d+)\s*x\s*([\d-]+|falha)/i;
 
-export const parseWorkoutText = (text: string): ExerciseTemplate[] => {
+export const parseWorkoutText = (text: string): Omit<ExerciseTemplate, 'id'>[] => {
     const lines = text.split('\n').filter(line => line.trim() !== '');
-    const exercises: ExerciseTemplate[] = [];
+    const exercises: Omit<ExerciseTemplate, 'id'>[] = [];
 
     for (const line of lines) {
         const match = line.match(WORKOUT_REGEX);
         if (match) {
             const [, name, sets, reps] = match;
             exercises.push({
-                id: crypto.randomUUID(),
                 name: name.trim(),
                 sets: parseInt(sets, 10) || 0,
                 reps: reps.toLowerCase() === 'falha' ? 0 : (parseInt(reps.split('-')[0], 10) || 0),
@@ -35,17 +34,28 @@ interface ParsedName {
 }
 
 const normalizeName = (name: string): string => {
-  let normalized = name.toLowerCase().trim().replace(/\s+/g, ' ');
+  let normalized = name.toLowerCase().trim()
+    .replace(/\s+/g, ' ')
+    .trim();
   
-  // Specific pluralizations
-  if (normalized.endsWith('colheres')) normalized = normalized.replace(/es$/, '');
-  if (normalized.endsWith('ns')) normalized = normalized.slice(0, -2) + 'm';
-  if (normalized.endsWith('res')) normalized = normalized.slice(0, -3) + 'r';
-  
-  // General plural 's'
-  if (normalized.endsWith('s')) normalized = normalized.slice(0, -1);
-  
-  return normalized;
+  // Simple, safe de-pluralization applied word-by-word.
+  const words = normalized.split(' ').map(word => {
+      // Specific exceptions that end in 's' but are singular.
+      const exceptions = ['arroz', 'lápis', 'pires', 'ônibus'];
+      if (exceptions.includes(word)) {
+          return word;
+      }
+      
+      if (word === 'colheres') return 'colher';
+
+      // General rule: remove 's' from words longer than 3 chars.
+      if (word.length > 3 && word.endsWith('s')) {
+          return word.slice(0, -1);
+      }
+      return word;
+  });
+
+  return words.join(' ');
 };
 
 const parseFoodName = (name: string): ParsedName => {
@@ -53,7 +63,7 @@ const parseFoodName = (name: string): ParsedName => {
     const unitsRegex = /(g|ml|un|unidade|colher|concha)/i;
 
     // Pattern for complex recipes - treat as single unit
-    if (originalName.includes('+') || originalName.match(/\d/g)?.length > 2) {
+    if (originalName.includes('+') || originalName.includes(' com ') || originalName.match(/\d/g)?.length > 2) {
          return { foodName: originalName, quantity: 1, unit: 'un' };
     }
 
