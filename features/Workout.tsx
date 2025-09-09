@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import type { User, Exercise, ExerciseTemplate } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
@@ -6,33 +5,72 @@ import { Card, Input, Button, Modal, Textarea, Spinner } from '../components/ui'
 import { getTodayISO } from '../services/dataService';
 import { parseWorkoutText } from '../services/parserService';
 import { ImportIcon } from '../constants';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 type ExerciseFormData = Omit<Exercise, 'id' | 'userId' | 'date'>;
 type ParsedExercise = ExerciseTemplate & { tempId: number; selected: boolean; };
 
 const initialFormState: ExerciseFormData = { name: '', sets: 0, reps: 0, load: 0, technique: '', notes: '' };
 
+const ExerciseSelectionModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    templates: ExerciseTemplate[];
+    onSelect: (template: ExerciseTemplate) => void;
+}> = ({ isOpen, onClose, templates, onSelect }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const filteredTemplates = templates.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Selecionar Exercício">
+            <div className="flex flex-col space-y-4">
+                <Input
+                    placeholder="Buscar exercício..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    autoFocus
+                />
+                <ul className="max-h-64 overflow-y-auto space-y-2">
+                    {filteredTemplates.map(template => (
+                        <li
+                            key={template.name}
+                            onClick={() => onSelect(template)}
+                            className="p-3 bg-background rounded-md hover:bg-gray-700 cursor-pointer"
+                        >
+                            <p className="font-semibold">{template.name}</p>
+                            <p className="text-sm text-text-secondary">{template.sets}x, {template.notes}</p>
+                        </li>
+                    ))}
+                    {filteredTemplates.length === 0 && <li className="text-center text-text-secondary p-4">Nenhum modelo encontrado.</li>}
+                </ul>
+            </div>
+        </Modal>
+    );
+};
+
 export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [exercises, setExercises] = useLocalStorage<Exercise[]>(`exercises_${currentUser.id}`, []);
   const [exerciseTemplates, setExerciseTemplates] = useLocalStorage<ExerciseTemplate[]>(`exerciseTemplates_${currentUser.id}`, []);
   const [formData, setFormData] = useState<ExerciseFormData>(initialFormState);
   const [isImportModalOpen, setImportModalOpen] = useState(false);
+  const [isSelectionModalOpen, setSelectionModalOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [parsedExercises, setParsedExercises] = useState<ParsedExercise[]>([]);
   const [isParsing, setIsParsing] = useState(false);
+  const isMobile = useIsMobile();
 
   const exerciseTemplateNames = useMemo(() => exerciseTemplates.map(t => t.name), [exerciseTemplates]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
 
-    if (name === 'name') {
+    if (name === 'name' && !isMobile) {
         const selectedTemplate = exerciseTemplates.find(t => t.name === value);
         if (selectedTemplate) {
             setFormData(prev => ({
-                ...prev, // Mantém a carga (load) anterior
-                ...selectedTemplate, // Preenche o resto com o modelo
-                name: value, // Garante que o nome seja o valor atual
+                ...prev,
+                ...selectedTemplate,
+                name: value,
             }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
@@ -41,6 +79,14 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         setFormData(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
     }
   };
+
+  const handleSelectTemplate = (template: ExerciseTemplate) => {
+      setFormData(prev => ({
+          ...prev, // Keep existing load
+          ...template,
+      }));
+      setSelectionModalOpen(false);
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +135,8 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Treino</h1>
         <Button onClick={() => setImportModalOpen(true)}>
             <ImportIcon className="w-5 h-5 mr-2" />
-            Importar Modelos
+            <span className="hidden sm:inline">Importar Modelos</span>
+            <span className="sm:hidden">Importar</span>
         </Button>
       </div>
 
@@ -97,7 +144,15 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         <Card className="lg:col-span-1">
           <h2 className="text-xl font-bold mb-4">Registrar Exercício</h2>
           <form onSubmit={handleSubmit} className="space-y-3">
-            <Input label="Exercício" name="name" value={formData.name} onChange={handleChange} required list="exercise-templates" dataListOptions={exerciseTemplateNames} autoComplete="off" />
+            <Input label="Exercício" name="name" value={formData.name} onChange={handleChange} required 
+                list={!isMobile ? "exercise-templates" : undefined}
+                dataListOptions={!isMobile ? exerciseTemplateNames : undefined}
+                autoComplete="off"
+                readOnly={isMobile}
+                onClick={() => isMobile && setSelectionModalOpen(true)}
+                onFocus={(e) => isMobile && e.target.blur()}
+                placeholder={isMobile ? "Toque para selecionar" : "Digite ou selecione"}
+            />
             <Input label="Séries" name="sets" type="number" value={formData.sets} onChange={handleChange} required/>
             <Input label="Repetições" name="reps" type="number" value={formData.reps} onChange={handleChange} required/>
             <Input label="Carga (kg)" name="load" type="number" value={formData.load} onChange={handleChange} required/>
@@ -109,7 +164,7 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
         <Card className="lg:col-span-2">
           <h2 className="text-xl font-bold mb-4">Treino de Hoje</h2>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-gray-700">
@@ -125,12 +180,28 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     <td className="p-2">{ex.name}</td>
                     <td className="p-2">{ex.sets} x {ex.reps}</td>
                     <td className="p-2">{ex.load} kg</td>
-                    <td className="p-2">{ex.notes}</td>
+                    <td className="p-2">{ex.technique || ex.notes}</td>
                   </tr>
                 ))}
                 {todayExercises.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-text-secondary">Nenhum exercício registrado hoje.</td></tr>}
               </tbody>
             </table>
+          </div>
+          <div className="space-y-3 md:hidden">
+              {todayExercises.length > 0 ? todayExercises.map(ex => (
+                  <Card key={ex.id} className="p-3 !bg-background">
+                      <div className="flex justify-between items-start">
+                          <div>
+                              <p className="font-bold text-text-primary">{ex.name}</p>
+                              <p className="text-sm text-text-secondary">{ex.sets} séries x {ex.reps} reps</p>
+                              { (ex.technique || ex.notes) && <p className="text-xs text-gray-500">Nota: {ex.technique || ex.notes}</p> }
+                          </div>
+                          <p className="font-semibold text-primary">{ex.load} kg</p>
+                      </div>
+                  </Card>
+              )) : (
+                  <p className="p-4 text-center text-text-secondary">Nenhum exercício registrado hoje.</p>
+              )}
           </div>
         </Card>
       </div>
@@ -166,6 +237,7 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             )}
         </div>
       </Modal>
+      {isMobile && <ExerciseSelectionModal isOpen={isSelectionModalOpen} onClose={() => setSelectionModalOpen(false)} templates={exerciseTemplates} onSelect={handleSelectTemplate} />}
     </div>
   );
 };

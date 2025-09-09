@@ -54,6 +54,13 @@ export interface ProgressLog {
   waist?: number;
   abdomen?: number;
   hip?: number;
+  visceralFat?: number;
+  metabolism?: number;
+  chest?: number;
+  leftArm?: number;
+  rightArm?: number;
+  leftThigh?: number;
+  rightThigh?: number;
 }
 
 export interface Achievement {
@@ -88,4 +95,13 @@ export interface ExerciseTemplate {
   reps: number;
   technique?: string;
   notes?: string;
+}
+
+export interface BackupData {
+    meals: Meal[];
+    exercises: Exercise[];
+    cardio: Cardio[];
+    progress: ProgressLog[];
+    mealTemplates: MealTemplate[];
+    exerciseTemplates: ExerciseTemplate[];
 }

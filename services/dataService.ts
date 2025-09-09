@@ -41,6 +41,21 @@ export const exportToCsv = <T extends object,>(data: T[], filename: string) => {
     }
 };
 
+export const exportAllDataToJson = (data: object, filename: string) => {
+    const jsonString = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+};
+
 export const getTodayISO = () => new Date().toISOString().split('T')[0];
 
 export const getTodayData = <T extends { date: string },>(data: T[]) => {

@@ -1,25 +1,54 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import type { User, ProgressLog, Exercise, Meal, Cardio, AllUserData } from '../types';
+import type { User, ProgressLog, Exercise, Meal, Cardio, AllUserData, BackupData, MealTemplate, ExerciseTemplate } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Select } from '../components/ui';
-import { checkAchievements, exportToCsv } from '../services/dataService';
+import { checkAchievements, exportToCsv, getTodayISO, exportAllDataToJson } from '../services/dataService';
 
 type Tab = 'Progresso' | 'Conquistas' | 'Exportar' | 'Admin';
+
+const initialProgressFormState: Omit<ProgressLog, 'id' | 'userId' | 'date'> = {
+    weight: 0, height: 0, bodyFat: 0, muscleMass: 0,
+    waist: 0, abdomen: 0, hip: 0, visceralFat: 0,
+    metabolism: 0, chest: 0, leftArm: 0, rightArm: 0,
+    leftThigh: 0, rightThigh: 0,
+};
 
 const ProgressTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const [progress, setProgress] = useLocalStorage<ProgressLog[]>(`progress_${currentUser.id}`, []);
     const [exercises] = useLocalStorage<Exercise[]>(`exercises_${currentUser.id}`, []);
-    const [formData, setFormData] = useState<Omit<ProgressLog, 'id' | 'userId' | 'date'>>({ weight: 0, height: 0 });
+    const [formData, setFormData] = useState(initialProgressFormState);
     const [selectedExercise, setSelectedExercise] = useState<string>('');
+    const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     
     const uniqueExercises = useMemo(() => Array.from(new Set(exercises.map(e => e.name))), [exercises]);
+    
+    useEffect(() => {
+        if(feedbackMessage) {
+            const timer = setTimeout(() => setFeedbackMessage(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [feedbackMessage]);
+    
+    const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({...prev, [name]: parseFloat(value) || 0 }));
+    }
 
     const handleProgressSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        setFeedbackMessage(null);
+        
+        const hasLoggedToday = progress.some(log => log.date.startsWith(getTodayISO()));
+        if (hasLoggedToday) {
+            setFeedbackMessage({ type: 'error', text: 'Você já registrou suas medidas hoje.' });
+            return;
+        }
+
         const newLog: ProgressLog = { ...formData, id: crypto.randomUUID(), userId: currentUser.id, date: new Date().toISOString() };
         setProgress(prev => [...prev, newLog]);
+        setFeedbackMessage({ type: 'success', text: 'Medidas salvas com sucesso!' });
     };
     
     const loadProgressionData = useMemo(() => {
@@ -27,7 +56,7 @@ const ProgressTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         return exercises
             .filter(e => e.name === selectedExercise)
             .map(e => ({ date: new Date(e.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), Carga: e.load }))
-            .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            .sort((a,b) => new Date(a.date.split('/').reverse().join('-')).getTime() - new Date(b.date.split('/').reverse().join('-')).getTime());
     }, [selectedExercise, exercises]);
 
     const volumeData = useMemo(() => {
@@ -39,24 +68,37 @@ const ProgressTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         });
         return Object.entries(volumeByDate)
             .map(([date, volume]) => ({ date, Volume: volume / 1000 })) // in tons
-            .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            .sort((a,b) => new Date(a.date.split('/').reverse().join('-')).getTime() - new Date(b.date.split('/').reverse().join('-')).getTime());
     }, [exercises]);
 
     return (
         <div className="space-y-6">
             <Card>
-                <h2 className="text-xl font-bold mb-4">Registrar Medidas</h2>
-                <form onSubmit={handleProgressSubmit} className="space-y-2">
-                    <Input label="Peso (kg)" type="number" step="0.1" value={formData.weight} onChange={e => setFormData(p => ({...p, weight: parseFloat(e.target.value)}))} required/>
-                    <Input label="Altura (cm)" type="number" value={formData.height} onChange={e => setFormData(p => ({...p, height: parseFloat(e.target.value)}))} required/>
-                    <Input label="% Gordura" type="number" step="0.1" value={formData.bodyFat || ''} onChange={e => setFormData(p => ({...p, bodyFat: parseFloat(e.target.value)}))}/>
-                    <Input label="% Músculo" type="number" step="0.1" value={formData.muscleMass || ''} onChange={e => setFormData(p => ({...p, muscleMass: parseFloat(e.target.value)}))}/>
-                    <Button type="submit" className="w-full mt-2">Salvar</Button>
+                <h2 className="text-xl font-bold mb-4">Registrar Medidas Corporais</h2>
+                <form onSubmit={handleProgressSubmit} className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <Input label="Peso (kg)" name="weight" type="number" step="0.1" value={formData.weight || ''} onChange={handleFormChange} required/>
+                        <Input label="Altura (cm)" name="height" type="number" value={formData.height || ''} onChange={handleFormChange} required/>
+                        <Input label="% Gordura" name="bodyFat" type="number" step="0.1" value={formData.bodyFat || ''} onChange={handleFormChange}/>
+                        <Input label="% Músculo" name="muscleMass" type="number" step="0.1" value={formData.muscleMass || ''} onChange={handleFormChange}/>
+                        <Input label="Gord. Visceral" name="visceralFat" type="number" value={formData.visceralFat || ''} onChange={handleFormChange}/>
+                        <Input label="Metabolismo (kcal)" name="metabolism" type="number" value={formData.metabolism || ''} onChange={handleFormChange}/>
+                        <Input label="Peito (cm)" name="chest" type="number" step="0.1" value={formData.chest || ''} onChange={handleFormChange}/>
+                        <Input label="Braço Esq. (cm)" name="leftArm" type="number" step="0.1" value={formData.leftArm || ''} onChange={handleFormChange}/>
+                        <Input label="Braço Dir. (cm)" name="rightArm" type="number" step="0.1" value={formData.rightArm || ''} onChange={handleFormChange}/>
+                        <Input label="Cintura (cm)" name="waist" type="number" step="0.1" value={formData.waist || ''} onChange={handleFormChange}/>
+                        <Input label="Abdômen (cm)" name="abdomen" type="number" step="0.1" value={formData.abdomen || ''} onChange={handleFormChange}/>
+                        <Input label="Quadril (cm)" name="hip" type="number" step="0.1" value={formData.hip || ''} onChange={handleFormChange}/>
+                        <Input label="Coxa Esq. (cm)" name="leftThigh" type="number" step="0.1" value={formData.leftThigh || ''} onChange={handleFormChange}/>
+                        <Input label="Coxa Dir. (cm)" name="rightThigh" type="number" step="0.1" value={formData.rightThigh || ''} onChange={handleFormChange}/>
+                    </div>
+                    <Button type="submit" className="w-full !mt-6">Salvar Medidas do Dia</Button>
+                    {feedbackMessage && <p className={`text-center mt-2 text-sm ${feedbackMessage.type === 'success' ? 'text-green-400' : 'text-red-500'}`}>{feedbackMessage.text}</p>}
                 </form>
             </Card>
             <Card>
-                <h2 className="text-xl font-bold mb-4">Performance</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <h2 className="text-xl font-bold mb-4">Performance e Gráficos</h2>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div>
                         <h3 className="font-semibold mb-2">Progressão de Carga</h3>
                         <Select value={selectedExercise} onChange={e => setSelectedExercise(e.target.value)} className="mb-4">
@@ -73,10 +115,11 @@ const ProgressTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                                 <Line type="monotone" dataKey="Carga" stroke="#6366f1" />
                             </LineChart>
                         </ResponsiveContainer>
-                        ) : <p className="text-text-secondary text-center">Selecione um exercício com pelo menos 2 registros.</p>}
+                        ) : <p className="text-text-secondary text-center py-10">Selecione um exercício com pelo menos 2 registros.</p>}
                     </div>
                     <div>
                         <h3 className="font-semibold mb-2">Volume de Treino (toneladas)</h3>
+                         {volumeData.length > 0 ? (
                         <ResponsiveContainer width="100%" height={250}>
                             <BarChart data={volumeData}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#4b5563" />
@@ -86,6 +129,7 @@ const ProgressTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                                 <Bar dataKey="Volume" fill="#14b8a6" />
                             </BarChart>
                         </ResponsiveContainer>
+                        ) : <p className="text-text-secondary text-center py-10">Nenhum treino com carga registrado.</p>}
                     </div>
                 </div>
             </Card>
@@ -127,17 +171,89 @@ const ExportTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const [exercises] = useLocalStorage<Exercise[]>(`exercises_${currentUser.id}`, []);
     const [cardio] = useLocalStorage<Cardio[]>(`cardio_${currentUser.id}`, []);
     const [progress] = useLocalStorage<ProgressLog[]>(`progress_${currentUser.id}`, []);
+    const [mealTemplates] = useLocalStorage<MealTemplate[]>(`mealTemplates_${currentUser.id}`, []);
+    const [exerciseTemplates] = useLocalStorage<ExerciseTemplate[]>(`exerciseTemplates_${currentUser.id}`, []);
     
+    const [importFeedback, setImportFeedback] = useState('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleExportAll = () => {
+        const backupData: BackupData = {
+            meals,
+            exercises,
+            cardio,
+            progress,
+            mealTemplates,
+            exerciseTemplates,
+        };
+        exportAllDataToJson(backupData, 'backup_completo.json');
+    };
+
+    const triggerFileInput = () => {
+        setImportFeedback('');
+        fileInputRef.current?.click();
+    };
+
+    const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const text = e.target?.result;
+                if (typeof text !== 'string') throw new Error('O arquivo não pôde ser lido.');
+                
+                const data = JSON.parse(text) as BackupData;
+
+                const requiredKeys: (keyof BackupData)[] = ['meals', 'exercises', 'cardio', 'progress', 'mealTemplates', 'exerciseTemplates'];
+                const hasAllKeys = requiredKeys.every(key => key in data && Array.isArray(data[key]));
+                
+                if (!hasAllKeys) {
+                    throw new Error('Arquivo de backup inválido ou corrompido.');
+                }
+
+                if (window.confirm('Tem certeza? A importação substituirá TODOS os seus dados atuais. Esta ação não pode ser desfeita.')) {
+                    localStorage.setItem(`meals_${currentUser.id}`, JSON.stringify(data.meals || []));
+                    localStorage.setItem(`exercises_${currentUser.id}`, JSON.stringify(data.exercises || []));
+                    localStorage.setItem(`cardio_${currentUser.id}`, JSON.stringify(data.cardio || []));
+                    localStorage.setItem(`progress_${currentUser.id}`, JSON.stringify(data.progress || []));
+                    localStorage.setItem(`mealTemplates_${currentUser.id}`, JSON.stringify(data.mealTemplates || []));
+                    localStorage.setItem(`exerciseTemplates_${currentUser.id}`, JSON.stringify(data.exerciseTemplates || []));
+                    
+                    setImportFeedback('Dados importados com sucesso! É recomendado recarregar a página para ver as alterações.');
+                }
+            } catch (error) {
+                console.error(error);
+                setImportFeedback(error instanceof Error ? error.message : 'Ocorreu um erro ao importar o arquivo.');
+            } finally {
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Exportar Dados</h2>
+            <h2 className="text-2xl font-bold">Exportar e Importar Dados</h2>
             <Card>
-                <p className="text-text-secondary mb-4">Faça o backup dos seus dados em formato CSV para análise externa.</p>
+                <h3 className="text-xl font-bold mb-4">Backup Completo</h3>
+                <p className="text-text-secondary mb-4">Salve todos os seus dados (registros e modelos) em um único arquivo de backup ou restaure a partir de um arquivo salvo.</p>
                 <div className="flex flex-wrap gap-4">
-                    <Button onClick={() => exportToCsv(meals, 'nutricao.csv')}>Exportar Nutrição</Button>
-                    <Button onClick={() => exportToCsv(exercises, 'treinos.csv')}>Exportar Treinos</Button>
-                    <Button onClick={() => exportToCsv(cardio, 'cardio.csv')}>Exportar Cardio</Button>
-                    <Button onClick={() => exportToCsv(progress, 'progresso.csv')}>Exportar Progresso</Button>
+                    <Button onClick={handleExportAll}>Exportar Tudo (.json)</Button>
+                    <Button onClick={triggerFileInput} variant="secondary">Importar Backup (.json)</Button>
+                    <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleImport} />
+                </div>
+                {importFeedback && <p className={`mt-4 text-center text-sm ${importFeedback.includes('sucesso') ? 'text-green-400' : 'text-red-500'}`}>{importFeedback}</p>}
+            </Card>
+            <Card>
+                <h3 className="text-xl font-bold mb-4">Exportação Individual (CSV)</h3>
+                <p className="text-text-secondary mb-4">Faça o backup de dados individuais em formato CSV para análise externa.</p>
+                <div className="flex flex-wrap gap-4">
+                    <Button onClick={() => exportToCsv(meals, 'nutricao.csv')} variant="secondary">Exportar Nutrição</Button>
+                    <Button onClick={() => exportToCsv(exercises, 'treinos.csv')} variant="secondary">Exportar Treinos</Button>
+                    <Button onClick={() => exportToCsv(cardio, 'cardio.csv')} variant="secondary">Exportar Cardio</Button>
+                    <Button onClick={() => exportToCsv(progress, 'progresso.csv')} variant="secondary">Exportar Progresso</Button>
                 </div>
             </Card>
         </div>
@@ -165,7 +281,7 @@ const AdminTab: React.FC<{ users: User[], createUser: (u: string, p: string) => 
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold">👑 Painel de Administração</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
                     <h3 className="text-xl font-bold mb-4">Criar Novo Usuário</h3>
                     <form onSubmit={handleCreateUser} className="space-y-3">
@@ -177,7 +293,7 @@ const AdminTab: React.FC<{ users: User[], createUser: (u: string, p: string) => 
                 </Card>
                 <Card>
                     <h3 className="text-xl font-bold mb-4">Usuários Cadastrados</h3>
-                    <ul className="space-y-2">
+                    <ul className="space-y-2 max-h-60 overflow-y-auto">
                         {users.map(user => (
                             <li key={user.id} className="flex justify-between items-center bg-background p-2 rounded-md">
                                 <span>{user.username}</span>

@@ -63,7 +63,7 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
         <Card className="lg:col-span-2">
           <h2 className="text-xl font-bold mb-4">Cardio de Hoje</h2>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-gray-700">
@@ -85,6 +85,24 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 {todayCardio.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-text-secondary">Nenhuma atividade de cardio registrada hoje.</td></tr>}
               </tbody>
             </table>
+          </div>
+           <div className="space-y-3 md:hidden">
+              {todayCardio.length > 0 ? todayCardio.map(c => (
+                  <Card key={c.id} className="p-3 !bg-background">
+                       <div className="flex justify-between items-start">
+                          <div>
+                              <p className="font-bold text-text-primary">{c.type}</p>
+                              <p className="text-sm text-text-secondary">{c.duration} min - {c.intensity}</p>
+                          </div>
+                          <div className="text-right">
+                              <p className="font-semibold text-primary">{c.calories} kcal</p>
+                              {c.speed ? <p className="text-xs text-gray-500">{c.speed} km/h</p> : ''}
+                          </div>
+                      </div>
+                  </Card>
+              )) : (
+                  <p className="p-4 text-center text-text-secondary">Nenhuma atividade registrada hoje.</p>
+              )}
           </div>
         </Card>
       </div>

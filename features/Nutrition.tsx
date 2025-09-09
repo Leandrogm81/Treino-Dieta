@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import type { User, Meal, MealTemplate } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
@@ -6,37 +5,81 @@ import { Card, Input, Button, Modal, Textarea, Spinner } from '../components/ui'
 import { getTodayISO } from '../services/dataService';
 import { parseNutritionText } from '../services/parserService';
 import { ImportIcon } from '../constants';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 type MealFormData = Omit<Meal, 'id' | 'userId' | 'date'>;
 type ParsedMeal = MealTemplate & { tempId: number; selected: boolean };
 
 const initialFormState: MealFormData = { name: '', quantity: 0, unit: '', calories: 0, protein: 0, fat: 0, carbs: 0 };
 
+const MealSelectionModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    templates: MealTemplate[];
+    onSelect: (template: MealTemplate) => void;
+}> = ({ isOpen, onClose, templates, onSelect }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const filteredTemplates = templates.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Selecionar Alimento">
+            <div className="flex flex-col space-y-4">
+                <Input
+                    placeholder="Buscar alimento..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    autoFocus
+                />
+                <ul className="max-h-64 overflow-y-auto space-y-2">
+                    {filteredTemplates.map(template => (
+                        <li
+                            key={template.name}
+                            onClick={() => onSelect(template)}
+                            className="p-3 bg-background rounded-md hover:bg-gray-700 cursor-pointer"
+                        >
+                            <p className="font-semibold">{template.name}</p>
+                            <p className="text-sm text-text-secondary">{template.calories} kcal</p>
+                        </li>
+                    ))}
+                    {filteredTemplates.length === 0 && <li className="text-center text-text-secondary p-4">Nenhum modelo encontrado.</li>}
+                </ul>
+            </div>
+        </Modal>
+    );
+};
+
+
 export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [meals, setMeals] = useLocalStorage<Meal[]>(`meals_${currentUser.id}`, []);
   const [mealTemplates, setMealTemplates] = useLocalStorage<MealTemplate[]>(`mealTemplates_${currentUser.id}`, []);
   const [formData, setFormData] = useState<MealFormData>(initialFormState);
   const [isImportModalOpen, setImportModalOpen] = useState(false);
+  const [isSelectionModalOpen, setSelectionModalOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [parsedMeals, setParsedMeals] = useState<ParsedMeal[]>([]);
   const [isParsing, setIsParsing] = useState(false);
+  const isMobile = useIsMobile();
 
   const mealTemplateNames = useMemo(() => mealTemplates.map(t => t.name), [mealTemplates]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
     
-    // Autocomplete logic
-    if (name === 'name') {
+    if (name === 'name' && !isMobile) {
         const selectedTemplate = mealTemplates.find(t => t.name === value);
         if (selectedTemplate) {
-            setFormData(selectedTemplate); // Fill form with template data
+            setFormData(selectedTemplate);
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
     } else {
         setFormData(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
     }
+  };
+  
+  const handleSelectTemplate = (template: MealTemplate) => {
+    setFormData(template);
+    setSelectionModalOpen(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -86,14 +129,23 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Nutrição</h1>
         <Button onClick={() => setImportModalOpen(true)}>
             <ImportIcon className="w-5 h-5 mr-2" />
-            Importar Modelos
+            <span className="hidden sm:inline">Importar Modelos</span>
+            <span className="sm:hidden">Importar</span>
         </Button>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-1">
           <h2 className="text-xl font-bold mb-4">Registrar Refeição</h2>
           <form onSubmit={handleSubmit} className="space-y-3">
-            <Input label="Alimento" name="name" value={formData.name} onChange={handleChange} required list="meal-templates" dataListOptions={mealTemplateNames} autoComplete="off"/>
+            <Input label="Alimento" name="name" value={formData.name} onChange={handleChange} required 
+              list={!isMobile ? "meal-templates" : undefined}
+              dataListOptions={!isMobile ? mealTemplateNames : undefined}
+              autoComplete="off"
+              readOnly={isMobile}
+              onClick={() => isMobile && setSelectionModalOpen(true)}
+              onFocus={(e) => isMobile && e.target.blur()}
+              placeholder={isMobile ? "Toque para selecionar" : "Digite ou selecione"}
+            />
             <Input label="Quantidade" name="quantity" type="number" value={formData.quantity} onChange={handleChange} required/>
             <Input label="Unidade (g, ml, un)" name="unit" value={formData.unit} onChange={handleChange} required/>
             <Input label="Calorias" name="calories" type="number" value={formData.calories} onChange={handleChange} required/>
@@ -106,7 +158,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
         <Card className="lg:col-span-2">
           <h2 className="text-xl font-bold mb-4">Refeições de Hoje</h2>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-gray-700">
@@ -128,6 +180,17 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 {todayMeals.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-text-secondary">Nenhuma refeição registrada hoje.</td></tr>}
               </tbody>
             </table>
+          </div>
+           <div className="space-y-3 md:hidden">
+              {todayMeals.length > 0 ? todayMeals.map(meal => (
+                  <Card key={meal.id} className="p-3 !bg-background">
+                      <p className="font-bold text-text-primary">{meal.name}</p>
+                      <p className="text-sm text-text-secondary">{meal.quantity} {meal.unit} - {meal.calories} kcal</p>
+                      <p className="text-xs text-gray-500">P: {meal.protein}g / G: {meal.fat}g / C: {meal.carbs}g</p>
+                  </Card>
+              )) : (
+                  <p className="p-4 text-center text-text-secondary">Nenhuma refeição registrada hoje.</p>
+              )}
           </div>
         </Card>
       </div>
@@ -162,6 +225,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             )}
         </div>
       </Modal>
+      {isMobile && <MealSelectionModal isOpen={isSelectionModalOpen} onClose={() => setSelectionModalOpen(false)} templates={mealTemplates} onSelect={handleSelectTemplate} />}
     </div>
   );
 };
