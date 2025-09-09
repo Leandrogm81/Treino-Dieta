@@ -1,9 +1,7 @@
-
 import React, { useState } from 'react';
 import type { User, Exercise } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
-import { Card, Input, Button, Modal, Spinner } from '../components/ui';
-import { parseWorkoutPlan } from '../services/geminiService';
+import { Card, Input, Button } from '../components/ui';
 import { getTodayISO } from '../services/dataService';
 
 type ExerciseFormData = Omit<Exercise, 'id' | 'userId' | 'date' | 'reps'> & { reps: string };
@@ -13,11 +11,6 @@ const initialFormState: ExerciseFormData = { name: '', sets: 0, reps: '', load: 
 export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [exercises, setExercises] = useLocalStorage<Exercise[]>(`exercises_${currentUser.id}`, []);
   const [formData, setFormData] = useState<ExerciseFormData>(initialFormState);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [planText, setPlanText] = useState('');
-  const [parsedPlan, setParsedPlan] = useLocalStorage<any[]>(`parsed_workout_plan_${currentUser.id}`, []);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
@@ -37,32 +30,6 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     setFormData(initialFormState);
   };
   
-  const handleParsePlan = async () => {
-    if (!planText) return;
-    setIsLoading(true);
-    setError('');
-    try {
-        const parsedData = await parseWorkoutPlan(planText);
-        setParsedPlan(parsedData);
-    } catch(err) {
-        setError((err as Error).message);
-    } finally {
-        setIsLoading(false);
-    }
-  };
-  
-  const handleSelectPlanItem = (item: any) => {
-      setFormData({
-          name: item.name || '',
-          sets: item.sets || 0,
-          reps: item.reps || '',
-          load: 0,
-          technique: '',
-          notes: item.notes || ''
-      });
-      setIsModalOpen(false);
-  };
-  
   const todayExercises = exercises.filter(ex => ex.date.startsWith(getTodayISO()));
 
   return (
@@ -78,10 +45,7 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             <Input label="Carga (kg)" name="load" type="number" value={formData.load} onChange={handleChange} required/>
             <Input label="Técnica" name="technique" value={formData.technique || ''} onChange={handleChange} />
             <Input label="Observações" name="notes" value={formData.notes || ''} onChange={handleChange} />
-            <div className="flex space-x-2 pt-2">
-                <Button type="submit" className="flex-1">Adicionar</Button>
-                <Button type="button" variant="secondary" onClick={() => setIsModalOpen(true)}>Importar</Button>
-            </div>
+            <Button type="submit" className="w-full !mt-4">Adicionar</Button>
           </form>
         </Card>
 
@@ -112,34 +76,6 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
           </div>
         </Card>
       </div>
-
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Importar Plano de Treino com IA">
-          <div className="space-y-4">
-            <p className="text-text-secondary">Cole seu plano de treino abaixo. A IA irá extrair os exercícios para você.</p>
-            <textarea 
-                className="w-full h-32 bg-background border border-gray-600 rounded-md p-2 text-text-primary placeholder-gray-500"
-                placeholder="Ex: Treino A: Supino Reto 3x10, Agachamento 4x8..."
-                value={planText}
-                onChange={(e) => setPlanText(e.target.value)}
-            />
-            {error && <p className="text-red-500 text-sm">{error}</p>}
-            <Button onClick={handleParsePlan} disabled={isLoading} className="w-full flex justify-center">
-              {isLoading ? <Spinner/> : 'Analisar Plano'}
-            </Button>
-            {parsedPlan.length > 0 && (
-                <div>
-                    <h3 className="font-bold my-2">Exercícios encontrados:</h3>
-                    <ul className="space-y-2 max-h-48 overflow-y-auto">
-                        {parsedPlan.map((item, i) => (
-                            <li key={i} onClick={() => handleSelectPlanItem(item)} className="p-2 bg-gray-700 rounded-md cursor-pointer hover:bg-primary">
-                                {item.name} ({item.sets}x{item.reps})
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-          </div>
-      </Modal>
     </div>
   );
 };

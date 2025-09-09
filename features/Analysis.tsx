@@ -1,10 +1,8 @@
-
 import React, { useState, useMemo } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { User, ProgressLog, Exercise, Meal, Cardio, AllUserData } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
-import { Card, Input, Button, Spinner, Select } from '../components/ui';
-import { getProgressAnalysis } from '../services/geminiService';
+import { Card, Input, Button, Select } from '../components/ui';
 import { checkAchievements, exportToCsv } from '../services/dataService';
 
 type Tab = 'Progresso' | 'Conquistas' | 'Exportar' | 'Admin';
@@ -13,8 +11,6 @@ const ProgressTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const [progress, setProgress] = useLocalStorage<ProgressLog[]>(`progress_${currentUser.id}`, []);
     const [exercises] = useLocalStorage<Exercise[]>(`exercises_${currentUser.id}`, []);
     const [formData, setFormData] = useState<Omit<ProgressLog, 'id' | 'userId' | 'date'>>({ weight: 0, height: 0 });
-    const [analysis, setAnalysis] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
     const [selectedExercise, setSelectedExercise] = useState<string>('');
     
     const uniqueExercises = useMemo(() => Array.from(new Set(exercises.map(e => e.name))), [exercises]);
@@ -25,18 +21,6 @@ const ProgressTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         setProgress(prev => [...prev, newLog]);
     };
     
-    const handleGetAnalysis = async () => {
-        setIsLoading(true);
-        try {
-            const result = await getProgressAnalysis({ progress, exercises });
-            setAnalysis(result);
-        } catch (e) {
-            setAnalysis((e as Error).message);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     const loadProgressionData = useMemo(() => {
         if (!selectedExercise) return [];
         return exercises
@@ -59,23 +43,16 @@ const ProgressTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card>
-                    <h2 className="text-xl font-bold mb-4">Registrar Medidas</h2>
-                    <form onSubmit={handleProgressSubmit} className="space-y-2">
-                        <Input label="Peso (kg)" type="number" step="0.1" value={formData.weight} onChange={e => setFormData(p => ({...p, weight: parseFloat(e.target.value)}))} required/>
-                        <Input label="Altura (cm)" type="number" value={formData.height} onChange={e => setFormData(p => ({...p, height: parseFloat(e.target.value)}))} required/>
-                        <Input label="% Gordura" type="number" step="0.1" value={formData.bodyFat || ''} onChange={e => setFormData(p => ({...p, bodyFat: parseFloat(e.target.value)}))}/>
-                        <Input label="% Músculo" type="number" step="0.1" value={formData.muscleMass || ''} onChange={e => setFormData(p => ({...p, muscleMass: parseFloat(e.target.value)}))}/>
-                        <Button type="submit" className="w-full mt-2">Salvar</Button>
-                    </form>
-                </Card>
-                <Card className="md:col-span-2">
-                    <h2 className="text-xl font-bold mb-4">Coach de Bolso</h2>
-                    <Button onClick={handleGetAnalysis} disabled={isLoading} className="mb-4 w-full flex justify-center">{isLoading ? <Spinner/> : "Obter Análise com IA"}</Button>
-                    {analysis && <div className="bg-background p-3 rounded-md text-text-primary whitespace-pre-wrap">{analysis}</div>}
-                </Card>
-            </div>
+            <Card>
+                <h2 className="text-xl font-bold mb-4">Registrar Medidas</h2>
+                <form onSubmit={handleProgressSubmit} className="space-y-2">
+                    <Input label="Peso (kg)" type="number" step="0.1" value={formData.weight} onChange={e => setFormData(p => ({...p, weight: parseFloat(e.target.value)}))} required/>
+                    <Input label="Altura (cm)" type="number" value={formData.height} onChange={e => setFormData(p => ({...p, height: parseFloat(e.target.value)}))} required/>
+                    <Input label="% Gordura" type="number" step="0.1" value={formData.bodyFat || ''} onChange={e => setFormData(p => ({...p, bodyFat: parseFloat(e.target.value)}))}/>
+                    <Input label="% Músculo" type="number" step="0.1" value={formData.muscleMass || ''} onChange={e => setFormData(p => ({...p, muscleMass: parseFloat(e.target.value)}))}/>
+                    <Button type="submit" className="w-full mt-2">Salvar</Button>
+                </form>
+            </Card>
             <Card>
                 <h2 className="text-xl font-bold mb-4">Performance</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
