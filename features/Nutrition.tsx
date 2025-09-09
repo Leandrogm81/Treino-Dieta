@@ -31,9 +31,9 @@ const MealSelectionModal: React.FC<{
                     autoFocus
                 />
                 <ul className="max-h-64 overflow-y-auto space-y-2">
-                    {filteredTemplates.map(template => (
+                    {filteredTemplates.map((template, index) => (
                         <li
-                            key={template.name}
+                            key={`${template.name}-${index}`}
                             onClick={() => onSelect(template)}
                             className="p-3 bg-background rounded-md hover:bg-gray-700 cursor-pointer"
                         >
@@ -58,6 +58,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [importText, setImportText] = useState('');
   const [parsedMeals, setParsedMeals] = useState<ParsedMeal[]>([]);
   const [isParsing, setIsParsing] = useState(false);
+  const [parsingAttempted, setParsingAttempted] = useState(false);
   const isMobile = useIsMobile();
 
   const mealTemplateNames = useMemo(() => mealTemplates.map(t => t.name), [mealTemplates]);
@@ -93,9 +94,16 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     setMeals(prev => [...prev, newMeal]);
     setFormData(initialFormState);
   };
+
+  const openImportModal = () => {
+    setParsedMeals([]);
+    setParsingAttempted(false);
+    setImportModalOpen(true);
+  };
   
   const handleParseText = () => {
       setIsParsing(true);
+      setParsingAttempted(true);
       const results = parseNutritionText(importText);
       setParsedMeals(results.map((m, i) => ({ ...m, tempId: i, selected: true })));
       setIsParsing(false);
@@ -120,6 +128,12 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const toggleParsedMealSelection = (tempId: number) => {
     setParsedMeals(prev => prev.map(m => m.tempId === tempId ? { ...m, selected: !m.selected } : m));
   }
+  
+  const importModalFooter = parsedMeals.length > 0 ? (
+      <Button onClick={handleSaveSelectedTemplates} className="w-full">
+          Salvar Modelos Selecionados
+      </Button>
+  ) : null;
 
   const todayMeals = meals.filter(m => m.date.startsWith(getTodayISO()));
 
@@ -127,7 +141,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Nutrição</h1>
-        <Button onClick={() => setImportModalOpen(true)}>
+        <Button onClick={openImportModal}>
             <ImportIcon className="w-5 h-5 mr-2" />
             <span className="hidden sm:inline">Importar Modelos</span>
             <span className="sm:hidden">Importar</span>
@@ -194,7 +208,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
           </div>
         </Card>
       </div>
-      <Modal isOpen={isImportModalOpen} onClose={() => setImportModalOpen(false)} title="Importar Modelos de Refeição">
+      <Modal isOpen={isImportModalOpen} onClose={() => setImportModalOpen(false)} title="Importar Modelos de Refeição" footer={importModalFooter}>
         <div className="space-y-4">
             <p className="text-sm text-text-secondary">Cole sua dieta para criar modelos reutilizáveis. Eles não serão adicionados ao dia de hoje.</p>
             <Textarea 
@@ -208,9 +222,9 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 {isParsing ? <Spinner/> : "Processar Texto"}
             </Button>
             {parsedMeals.length > 0 && (
-                <div>
+                <div className="mt-4">
                     <h3 className="font-semibold mb-2">Modelos encontrados:</h3>
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                    <div className="space-y-2 pr-2">
                         {parsedMeals.map(meal => (
                            <div key={meal.tempId} className="flex items-center bg-background p-2 rounded-md">
                                 <input type="checkbox" checked={meal.selected} onChange={() => toggleParsedMealSelection(meal.tempId)} className="mr-3 h-5 w-5 rounded text-primary focus:ring-primary bg-surface border-gray-600"/>
@@ -218,10 +232,10 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                            </div>
                         ))}
                     </div>
-                    <Button onClick={handleSaveSelectedTemplates} className="w-full mt-4">
-                        Salvar Modelos Selecionados
-                    </Button>
                 </div>
+            )}
+            {parsingAttempted && parsedMeals.length === 0 && !isParsing && (
+                <p className="text-center text-red-500 mt-4">Nenhum item válido encontrado no texto. Verifique o formato, por exemplo: "- 3 ovos: 210 Kcal | 18g proteína | 1g carboidrato | 15g gordura"</p>
             )}
         </div>
       </Modal>

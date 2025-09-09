@@ -1,4 +1,3 @@
-
 import React, { ReactNode } from 'react';
 
 interface CardProps {
@@ -88,17 +87,30 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  footer?: ReactNode;
 }
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-lg shadow-xl p-6 w-full max-w-lg">
-        <div className="flex justify-between items-center mb-4">
+      <div className="bg-surface rounded-lg shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
+        {/* Header (Fixo) */}
+        <div className="flex justify-between items-center p-6 pb-4 border-b border-gray-700 flex-shrink-0">
           <h2 className="text-xl font-bold text-text-primary">{title}</h2>
           <button onClick={onClose} className="text-text-secondary hover:text-text-primary text-2xl leading-none">&times;</button>
         </div>
-        <div>{children}</div>
+        
+        {/* Corpo (Rolável) */}
+        <div className="p-6 overflow-y-auto flex-grow">
+            {children}
+        </div>
+        
+        {/* Rodapé (Fixo) */}
+        {footer && (
+          <div className="p-6 pt-4 border-t border-gray-700 flex-shrink-0">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

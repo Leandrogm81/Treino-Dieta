@@ -31,9 +31,9 @@ const ExerciseSelectionModal: React.FC<{
                     autoFocus
                 />
                 <ul className="max-h-64 overflow-y-auto space-y-2">
-                    {filteredTemplates.map(template => (
+                    {filteredTemplates.map((template, index) => (
                         <li
-                            key={template.name}
+                            key={`${template.name}-${index}`}
                             onClick={() => onSelect(template)}
                             className="p-3 bg-background rounded-md hover:bg-gray-700 cursor-pointer"
                         >
@@ -57,6 +57,7 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [importText, setImportText] = useState('');
   const [parsedExercises, setParsedExercises] = useState<ParsedExercise[]>([]);
   const [isParsing, setIsParsing] = useState(false);
+  const [parsingAttempted, setParsingAttempted] = useState(false);
   const isMobile = useIsMobile();
 
   const exerciseTemplateNames = useMemo(() => exerciseTemplates.map(t => t.name), [exerciseTemplates]);
@@ -100,8 +101,15 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     setFormData(initialFormState);
   };
 
+  const openImportModal = () => {
+    setParsedExercises([]);
+    setParsingAttempted(false);
+    setImportModalOpen(true);
+  };
+
   const handleParseText = () => {
     setIsParsing(true);
+    setParsingAttempted(true);
     const results = parseWorkoutText(importText);
     setParsedExercises(results.map((ex, i) => ({ ...ex, tempId: i, selected: true })));
     setIsParsing(false);
@@ -126,6 +134,12 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const toggleParsedExerciseSelection = (tempId: number) => {
     setParsedExercises(prev => prev.map(ex => ex.tempId === tempId ? { ...ex, selected: !ex.selected } : ex));
   };
+
+  const importModalFooter = parsedExercises.length > 0 ? (
+      <Button onClick={handleSaveSelectedTemplates} className="w-full">
+          Salvar Modelos Selecionados
+      </Button>
+  ) : null;
   
   const todayExercises = exercises.filter(ex => ex.date.startsWith(getTodayISO()));
 
@@ -133,7 +147,7 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     <div className="space-y-6">
        <div className="flex justify-between items-center">
         <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Treino</h1>
-        <Button onClick={() => setImportModalOpen(true)}>
+        <Button onClick={openImportModal}>
             <ImportIcon className="w-5 h-5 mr-2" />
             <span className="hidden sm:inline">Importar Modelos</span>
             <span className="sm:hidden">Importar</span>
@@ -206,7 +220,7 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         </Card>
       </div>
 
-      <Modal isOpen={isImportModalOpen} onClose={() => setImportModalOpen(false)} title="Importar Modelos de Treino">
+      <Modal isOpen={isImportModalOpen} onClose={() => setImportModalOpen(false)} title="Importar Modelos de Treino" footer={importModalFooter}>
         <div className="space-y-4">
             <p className="text-sm text-text-secondary">Cole seu treino para criar modelos reutilizáveis. Eles não serão adicionados ao dia de hoje.</p>
             <Textarea 
@@ -220,9 +234,9 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 {isParsing ? <Spinner/> : "Processar Texto"}
             </Button>
             {parsedExercises.length > 0 && (
-                <div>
+                <div className="mt-4">
                     <h3 className="font-semibold mb-2">Modelos encontrados:</h3>
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                    <div className="space-y-2 pr-2">
                         {parsedExercises.map(ex => (
                            <div key={ex.tempId} className="flex items-center bg-background p-2 rounded-md">
                                 <input type="checkbox" checked={ex.selected} onChange={() => toggleParsedExerciseSelection(ex.tempId)} className="mr-3 h-5 w-5 rounded text-primary focus:ring-primary bg-surface border-gray-600"/>
@@ -230,10 +244,10 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                            </div>
                         ))}
                     </div>
-                    <Button onClick={handleSaveSelectedTemplates} className="w-full mt-4">
-                        Salvar Modelos Selecionados
-                    </Button>
                 </div>
+            )}
+            {parsingAttempted && parsedExercises.length === 0 && !isParsing && (
+                <p className="text-center text-red-500 mt-4">Nenhum item válido encontrado no texto. Verifique o formato, por exemplo: "Supino Reto Barra 4x6-10"</p>
             )}
         </div>
       </Modal>
