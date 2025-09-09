@@ -286,6 +286,14 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   ) : null;
 
   const todayMeals = meals.filter(m => m.date.startsWith(getTodayISO()));
+  
+  const totals = todayMeals.reduce((acc, meal) => ({
+      calories: acc.calories + meal.calories,
+      protein: acc.protein + meal.protein,
+      fat: acc.fat + meal.fat,
+      carbs: acc.carbs + meal.carbs,
+  }), { calories: 0, protein: 0, fat: 0, carbs: 0 });
+
 
   return (
     <div className="space-y-6">
@@ -357,8 +365,8 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                   <tr key={meal.id} className="border-b border-gray-800 hover:bg-gray-700">
                     <td className="p-2">{meal.name}</td>
                     <td className="p-2">{meal.quantity} {meal.unit}</td>
-                    <td className="p-2">{meal.calories}</td>
-                    <td className="p-2">{meal.protein}/{meal.fat}/{meal.carbs}</td>
+                    <td className="p-2">{meal.calories.toFixed(0)}</td>
+                    <td className="p-2">{meal.protein.toFixed(1)}/{meal.fat.toFixed(1)}/{meal.carbs.toFixed(1)}</td>
                     <td className="p-2 text-right">
                         <button onClick={() => handleDeleteMeal(meal.id)} className="text-gray-500 hover:text-red-500 p-1">
                             <TrashIcon className="w-5 h-5" />
@@ -368,20 +376,38 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 ))}
                 {todayMeals.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-text-secondary">Nenhuma refeição registrada hoje.</td></tr>}
               </tbody>
+              {todayMeals.length > 0 && (
+                <tfoot>
+                  <tr className="border-t-2 border-gray-600 font-bold bg-surface">
+                    <td className="p-2">Total</td>
+                    <td className="p-2"></td>
+                    <td className="p-2">{totals.calories.toFixed(0)}</td>
+                    <td className="p-2">{totals.protein.toFixed(1)}/{totals.fat.toFixed(1)}/{totals.carbs.toFixed(1)}</td>
+                    <td className="p-2"></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
            <div className="space-y-3 md:hidden">
               {todayMeals.length > 0 ? todayMeals.map(meal => (
                   <Card key={meal.id} className="p-3 !bg-background relative group">
                       <p className="font-bold text-text-primary">{meal.name}</p>
-                      <p className="text-sm text-text-secondary">{meal.quantity} {meal.unit} - {meal.calories} kcal</p>
-                      <p className="text-xs text-gray-500">P: {meal.protein}g / G: {meal.fat}g / C: {meal.carbs}g</p>
+                      <p className="text-sm text-text-secondary">{meal.quantity} {meal.unit} - {meal.calories.toFixed(0)} kcal</p>
+                      <p className="text-xs text-gray-500">P: {meal.protein.toFixed(1)}g / G: {meal.fat.toFixed(1)}g / C: {meal.carbs.toFixed(1)}g</p>
                       <button onClick={() => handleDeleteMeal(meal.id)} className="absolute top-2 right-2 text-gray-500 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity">
                         <TrashIcon className="w-5 h-5"/>
                       </button>
                   </Card>
               )) : (
                   <p className="p-4 text-center text-text-secondary">Nenhuma refeição registrada hoje.</p>
+              )}
+              {todayMeals.length > 0 && (
+                <div className="p-3 mt-4 border-t-2 border-gray-600 text-sm">
+                    <p className="font-bold text-text-primary">Total Hoje:</p>
+                    <p className="text-text-secondary">{totals.calories.toFixed(0)} kcal</p>
+                    <p className="text-xs text-gray-500">P: {totals.protein.toFixed(1)}g / G: {totals.fat.toFixed(1)}g / C: {totals.carbs.toFixed(1)}g</p>
+                </div>
               )}
           </div>
         </Card>

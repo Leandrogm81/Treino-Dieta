@@ -108,3 +108,18 @@ export interface BackupData {
     mealTemplates: MealTemplate[];
     exerciseTemplates: ExerciseTemplate[];
 }
+
+export interface UserGoals {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  water: number; // in ml
+}
+
+export interface WaterLog {
+  id: string;
+  userId: string;
+  date: string; // ISO string
+  amount: number; // in ml
+}

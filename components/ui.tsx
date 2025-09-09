@@ -124,3 +124,21 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
 export const Spinner: React.FC = () => (
     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
 );
+
+interface ProgressBarProps {
+  value: number;
+  max: number;
+  colorClass: string;
+}
+
+export const ProgressBar: React.FC<ProgressBarProps> = ({ value, max, colorClass }) => {
+  const percentage = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+  return (
+    <div className="w-full bg-gray-700 rounded-full h-2.5">
+      <div
+        className={`${colorClass} h-2.5 rounded-full transition-all duration-300`}
+        style={{ width: `${percentage}%` }}
+      ></div>
+    </div>
+  );
+};
