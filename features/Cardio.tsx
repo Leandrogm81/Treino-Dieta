@@ -1,14 +1,10 @@
 
-
 import React, { useState } from 'react';
-// FIX: Renamed imported type `Cardio` to `CardioType` to resolve name collision
-// with the `Cardio` component defined in this file.
 import type { User, Cardio as CardioType } from '../types';
-import { useLocalStorage } from '../hooks/useAuth';
+import { useLocalStorage } from '../useAuth';
 import { Card, Input, Button, Select } from '../components/ui';
 import { getTodayISO } from '../services/dataService';
 
-// FIX: Used renamed `CardioType`.
 type CardioFormData = {
     type: string;
     duration: string;
@@ -27,7 +23,6 @@ const TrashIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 
 export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
-  // FIX: Used renamed `CardioType`.
   const [cardio, setCardio] = useLocalStorage<CardioType[]>(`cardio_${currentUser.id}`, []);
   const [formData, setFormData] = useState<CardioFormData>(initialFormState);
 
@@ -41,7 +36,6 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // FIX: Used renamed `CardioType`.
     const newCardio: CardioType = {
       id: crypto.randomUUID(),
       userId: currentUser.id,

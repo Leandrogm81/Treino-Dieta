@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { User, ProgressLog, Exercise, Meal, Cardio, AllUserData, BackupData, MealTemplate, ExerciseTemplate } from '../types';
-import { useLocalStorage } from '../hooks/useAuth';
+import { useLocalStorage } from '../useAuth';
 import { Card, Input, Button, Select, Modal } from '../components/ui';
 import { checkAchievements, exportToCsv, getTodayISO, exportAllDataToJson } from '../services/dataService';
 
@@ -25,7 +26,8 @@ const ProgressTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const [selectedExercise, setSelectedExercise] = useState<string>('');
     const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     
-    const uniqueExercises = useMemo(() => Array.from(new Set(exercises.map(e => e.name))), [exercises]);
+    // FIX: Replaced `Array.from(new Set(...))` with a `filter` approach for better type inference compatibility.
+    const uniqueExercises = useMemo(() => exercises.map(e => e.name).filter((value, index, self) => self.indexOf(value) === index), [exercises]);
     
     useEffect(() => {
         if(feedbackMessage) {
@@ -36,7 +38,8 @@ const ProgressTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     
     const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({...prev, [name]: value }));
+        // FIX: Cast name to keyof ProgressFormData to ensure type safety when updating state.
+        setFormData(prev => ({...prev, [name as keyof ProgressFormData]: value }));
     }
 
     const handleProgressSubmit = (e: React.FormEvent) => {
@@ -63,20 +66,26 @@ const ProgressTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         if (!selectedExercise) return [];
         return exercises
             .filter(e => e.name === selectedExercise)
-            .map(e => ({ date: new Date(e.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), Carga: e.load }))
-            .sort((a,b) => new Date(a.date.split('/').reverse().join('-')).getTime() - new Date(b.date.split('/').reverse().join('-')).getTime());
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .map(e => ({ 
+                date: new Date(e.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), 
+                Carga: e.load 
+            }));
     }, [selectedExercise, exercises]);
 
     const volumeData = useMemo(() => {
-        const volumeByDate: { [date: string]: number } = {};
+        const volumeByDate: { [date: string]: number } = {}; // Key will be YYYY-MM-DD
         exercises.forEach(e => {
-            const date = new Date(e.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            const date = e.date.split('T')[0]; // Get YYYY-MM-DD from ISO string
             const volume = (volumeByDate[date] || 0) + (e.sets * e.reps * e.load);
             volumeByDate[date] = volume;
         });
         return Object.entries(volumeByDate)
-            .map(([date, volume]) => ({ date, Volume: volume / 1000 })) // in tons
-            .sort((a,b) => new Date(a.date.split('/').reverse().join('-')).getTime() - new Date(b.date.split('/').reverse().join('-')).getTime());
+            .sort((a,b) => new Date(a[0]).getTime() - new Date(b[0]).getTime()) // Sort by YYYY-MM-DD key
+            .map(([date, volume]) => ({ 
+                date: new Date(date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), // Format for display
+                Volume: volume / 1000 // in tons
+            }));
     }, [exercises]);
 
     return (

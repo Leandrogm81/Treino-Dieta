@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { User, Meal, Cardio, ProgressLog, UserGoals, WaterLog } from '../types';
-import { useLocalStorage } from '../hooks/useAuth';
+import { useLocalStorage } from '../useAuth';
 import { getTodayData } from '../services/dataService';
 import { Card, Button, Modal, Input, ProgressBar } from '../components/ui';
 
@@ -91,9 +91,10 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [waterLogs, setWaterLogs] = useLocalStorage<WaterLog[]>(`water_${currentUser.id}`, []);
   const [isGoalsModalOpen, setIsGoalsModalOpen] = useState(false);
 
-  const todayMeals = getTodayData(meals);
-  const todayCardio = getTodayData(cardio);
-  const todayWater = getTodayData(waterLogs);
+  // FIX: Add explicit types to ensure correct type inference from getTodayData.
+  const todayMeals: Meal[] = getTodayData(meals);
+  const todayCardio: Cardio[] = getTodayData(cardio);
+  const todayWater: WaterLog[] = getTodayData(waterLogs);
 
   const caloriesIn = todayMeals.reduce((sum, meal) => sum + meal.calories, 0);
   const proteinIn = todayMeals.reduce((sum, meal) => sum + meal.protein, 0);
@@ -104,12 +105,12 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const caloriesOut = todayCardio.reduce((sum, act) => sum + act.calories, 0);
   const balance = caloriesIn - caloriesOut;
 
-  const chartData = progress
+  const chartData = [...progress]
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .map(p => ({
       date: new Date(p.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
       peso: p.weight,
-    }))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }));
 
   const addWater = (amount: number) => {
     const newLog: WaterLog = {

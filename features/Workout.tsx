@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
 import type { User, Exercise, ExerciseTemplate } from '../types';
-import { useLocalStorage } from '../hooks/useAuth';
+import { useLocalStorage } from '../useAuth';
 import { Card, Input, Button, Modal, Textarea, Spinner } from '../components/ui';
 import { getTodayISO } from '../services/dataService';
 import { parseWorkoutText } from '../services/parserService';

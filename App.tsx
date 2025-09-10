@@ -1,10 +1,10 @@
 
 import React, { useState } from 'react';
-import { useAuth } from './hooks/useAuth';
+import { useAuth } from './useAuth';
 import { AuthView } from './components/Auth';
 import { Layout } from './components/Layout';
 import { Dashboard } from './features/Dashboard';
-import { Nutrition } from './Nutrition';
+import { Nutrition } from './features/Nutrition';
 import { Workout } from './features/Workout';
 import { Cardio } from './features/Cardio';
 import { Analysis } from './features/Analysis';
@@ -24,14 +24,10 @@ const App: React.FC = () => {
   }
 
   if (authState.status === 'FORCE_PASSWORD_CHANGE') {
-    // FIX: Removed unnecessary non-null assertion `!` as `currentUser` is guaranteed to exist in this state.
     return <AuthView mode="CHANGE_PASSWORD" changePassword={changePassword} currentUser={authState.currentUser} />;
   }
 
   if (authState.status === 'LOGGED_IN' && authState.currentUser) {
-    // FIX: Moved renderContent function inside the conditional block
-    // to ensure authState is correctly typed when renderContent is defined.
-    // This resolves errors where `currentUser` and `users` might not exist on `authState`.
     const renderContent = () => {
       switch (activePage) {
         case 'Dashboard':
