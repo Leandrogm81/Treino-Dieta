@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Meal, MealTemplate } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
@@ -7,6 +6,10 @@ import { getTodayISO } from '../services/dataService';
 import { parseNutritionText, normalizeName } from '../services/parserService';
 import { ImportIcon } from '../constants';
 import { useIsMobile } from '../hooks/useIsMobile';
+
+const parseNumber = (value: string | number): number => {
+    return parseFloat(String(value).replace(',', '.')) || 0;
+};
 
 type MealFormData = {
     name: string;
@@ -98,7 +101,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
   useEffect(() => {
     if (selectedTemplate) {
-      const quantity = parseFloat(formData.quantity) || 0;
+      const quantity = parseNumber(formData.quantity);
       const base = selectedTemplate;
       const ratio = quantity / base.servingSize;
       
@@ -175,11 +178,11 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const quantity = parseFloat(formData.quantity) || 0;
-    const calories = parseFloat(formData.calories) || 0;
-    const protein = parseFloat(formData.protein) || 0;
-    const fat = parseFloat(formData.fat) || 0;
-    const carbs = parseFloat(formData.carbs) || 0;
+    const quantity = parseNumber(formData.quantity);
+    const calories = parseNumber(formData.calories);
+    const protein = parseNumber(formData.protein);
+    const fat = parseNumber(formData.fat);
+    const carbs = parseNumber(formData.carbs);
     
     if (formData.name.trim() === '' || quantity <= 0) return;
 
@@ -337,13 +340,13 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 )}
             </div>
             <div className="grid grid-cols-2 gap-3">
-                <Input label="Quantidade" name="quantity" type="number" value={formData.quantity} onChange={handleChange} required onFocus={e => e.target.select()}/>
+                <Input label="Quantidade" name="quantity" type="number" step="any" value={formData.quantity} onChange={handleChange} required onFocus={e => e.target.select()}/>
                 <Input label="Unidade" name="unit" value={formData.unit} onChange={handleChange} required/>
             </div>
-            <Input label="Calorias" name="calories" type="number" value={formData.calories} onChange={handleChange} required onFocus={e => e.target.select()}/>
-            <Input label="Proteína (g)" name="protein" type="number" value={formData.protein} onChange={handleChange} required onFocus={e => e.target.select()}/>
-            <Input label="Gordura (g)" name="fat" type="number" value={formData.fat} onChange={handleChange} required onFocus={e => e.target.select()}/>
-            <Input label="Carboidratos (g)" name="carbs" type="number" value={formData.carbs} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Calorias" name="calories" type="number" step="any" value={formData.calories} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Proteína (g)" name="protein" type="number" step="0.1" value={formData.protein} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Gordura (g)" name="fat" type="number" step="0.1" value={formData.fat} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Carboidratos (g)" name="carbs" type="number" step="0.1" value={formData.carbs} onChange={handleChange} required onFocus={e => e.target.select()}/>
             <Button type="submit" className="w-full !mt-4">Adicionar Refeição</Button>
           </form>
         </Card>

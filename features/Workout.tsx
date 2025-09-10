@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import type { User, Exercise, ExerciseTemplate } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
@@ -7,6 +6,10 @@ import { getTodayISO } from '../services/dataService';
 import { parseWorkoutText } from '../services/parserService';
 import { ImportIcon } from '../constants';
 import { useIsMobile } from '../hooks/useIsMobile';
+
+const parseNumber = (value: string | number): number => {
+    return parseFloat(String(value).replace(',', '.')) || 0;
+};
 
 type ExerciseFormData = {
     name: string;
@@ -126,9 +129,9 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       userId: currentUser.id,
       date: new Date().toISOString(),
       name: formData.name,
-      sets: parseFloat(formData.sets) || 0,
-      reps: parseFloat(formData.reps) || 0,
-      load: parseFloat(formData.load) || 0,
+      sets: parseNumber(formData.sets),
+      reps: parseNumber(formData.reps),
+      load: parseNumber(formData.load),
       technique: formData.technique,
       notes: formData.notes,
     };
@@ -237,9 +240,9 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     </datalist>
                  )}
             </div>
-            <Input label="Séries" name="sets" type="number" value={formData.sets} onChange={handleChange} required onFocus={e => e.target.select()}/>
-            <Input label="Repetições" name="reps" type="number" value={formData.reps} onChange={handleChange} required onFocus={e => e.target.select()}/>
-            <Input label="Carga (kg)" name="load" type="number" value={formData.load} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Séries" name="sets" type="number" step="any" value={formData.sets} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Repetições" name="reps" type="number" step="any" value={formData.reps} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Carga (kg)" name="load" type="number" step="0.1" value={formData.load} onChange={handleChange} required onFocus={e => e.target.select()}/>
             <Input label="Técnica" name="technique" value={formData.technique || ''} onChange={handleChange} />
             <Input label="Observações" name="notes" value={formData.notes || ''} onChange={handleChange} />
             <Button type="submit" className="w-full !mt-4">Adicionar Exercício</Button>

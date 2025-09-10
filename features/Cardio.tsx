@@ -1,9 +1,12 @@
-
 import React, { useState } from 'react';
 import type { User, Cardio as CardioType } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Select } from '../components/ui';
 import { getTodayISO } from '../services/dataService';
+
+const parseNumber = (value: string | number): number => {
+    return parseFloat(String(value).replace(',', '.')) || 0;
+};
 
 type CardioFormData = {
     type: string;
@@ -41,10 +44,10 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       userId: currentUser.id,
       date: new Date().toISOString(),
       type: formData.type,
-      duration: parseFloat(formData.duration) || 0,
+      duration: parseNumber(formData.duration),
       intensity: formData.intensity,
-      calories: parseFloat(formData.calories) || 0,
-      speed: parseFloat(formData.speed) || 0,
+      calories: parseNumber(formData.calories),
+      speed: parseNumber(formData.speed),
     };
     setCardio(prev => [...prev, newCardio]);
     setFormData(initialFormState);
@@ -66,14 +69,14 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
           <h2 className="text-xl font-bold mb-4">Registrar Atividade</h2>
           <form onSubmit={handleSubmit} className="space-y-3">
             <Input label="Tipo (Corrida, Caminhada, etc.)" name="type" value={formData.type} onChange={handleChange} required/>
-            <Input label="Duração (minutos)" name="duration" type="number" value={formData.duration} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Duração (minutos)" name="duration" type="number" step="any" value={formData.duration} onChange={handleChange} required onFocus={e => e.target.select()}/>
             <Select label="Intensidade" name="intensity" value={formData.intensity} onChange={handleChange}>
               <option>Baixa</option>
               <option>Média</option>
               <option>Alta</option>
             </Select>
-            <Input label="Calorias Gastas" name="calories" type="number" value={formData.calories} onChange={handleChange} required onFocus={e => e.target.select()}/>
-            <Input label="Velocidade (km/h, opcional)" name="speed" type="number" value={formData.speed} onChange={handleChange} onFocus={e => e.target.select()}/>
+            <Input label="Calorias Gastas" name="calories" type="number" step="any" value={formData.calories} onChange={handleChange} required onFocus={e => e.target.select()}/>
+            <Input label="Velocidade (km/h, opcional)" name="speed" type="number" step="0.1" value={formData.speed} onChange={handleChange} onFocus={e => e.target.select()}/>
             <Button type="submit" className="w-full mt-2">Adicionar</Button>
           </form>
         </Card>

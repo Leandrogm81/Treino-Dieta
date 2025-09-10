@@ -1,10 +1,13 @@
-
 import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { User, Meal, Cardio, ProgressLog, UserGoals, WaterLog } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { getTodayData } from '../services/dataService';
 import { Card, Button, Modal, Input, ProgressBar } from '../components/ui';
+
+const parseNumber = (value: string | number): number => {
+    return parseFloat(String(value).replace(',', '.')) || 0;
+};
 
 const SummaryCard: React.FC<{ title: string; value: string; color: string }> = ({ title, value, color }) => (
   <Card className="text-center">
@@ -40,7 +43,7 @@ const GoalSettingsModal: React.FC<{
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormState(prev => ({ ...prev, [name]: parseInt(value, 10) || 0 }));
+    setFormState(prev => ({ ...prev, [name]: parseNumber(value) }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -52,11 +55,11 @@ const GoalSettingsModal: React.FC<{
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Definir Metas Diárias">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Input label="Meta de Calorias (kcal)" name="calories" type="number" value={formState.calories} onChange={handleChange} onFocus={e => e.target.select()} />
-        <Input label="Meta de Proteínas (g)" name="protein" type="number" value={formState.protein} onChange={handleChange} onFocus={e => e.target.select()}/>
-        <Input label="Meta de Carboidratos (g)" name="carbs" type="number" value={formState.carbs} onChange={handleChange} onFocus={e => e.target.select()}/>
-        <Input label="Meta de Gorduras (g)" name="fat" type="number" value={formState.fat} onChange={handleChange} onFocus={e => e.target.select()}/>
-        <Input label="Meta de Água (ml)" name="water" type="number" value={formState.water} onChange={handleChange} onFocus={e => e.target.select()}/>
+        <Input label="Meta de Calorias (kcal)" name="calories" type="number" step="any" value={formState.calories} onChange={handleChange} onFocus={e => e.target.select()} />
+        <Input label="Meta de Proteínas (g)" name="protein" type="number" step="any" value={formState.protein} onChange={handleChange} onFocus={e => e.target.select()}/>
+        <Input label="Meta de Carboidratos (g)" name="carbs" type="number" step="any" value={formState.carbs} onChange={handleChange} onFocus={e => e.target.select()}/>
+        <Input label="Meta de Gorduras (g)" name="fat" type="number" step="any" value={formState.fat} onChange={handleChange} onFocus={e => e.target.select()}/>
+        <Input label="Meta de Água (ml)" name="water" type="number" step="any" value={formState.water} onChange={handleChange} onFocus={e => e.target.select()}/>
         <Button type="submit" className="w-full !mt-6">Salvar Metas</Button>
       </form>
     </Modal>
