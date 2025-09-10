@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Meal, MealTemplate } from '../types';
-import { useLocalStorage } from '../useAuth';
+import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Modal, Textarea, Spinner } from '../components/ui';
 import { getTodayISO } from '../services/dataService';
 import { parseNutritionText, normalizeName } from '../services/parserService';

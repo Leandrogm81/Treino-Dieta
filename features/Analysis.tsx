@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { User, ProgressLog, Exercise, Meal, Cardio, AllUserData, BackupData, MealTemplate, ExerciseTemplate } from '../types';
-import { useLocalStorage } from '../useAuth';
+import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Select, Modal } from '../components/ui';
 import { checkAchievements, exportToCsv, getTodayISO, exportAllDataToJson } from '../services/dataService';
 

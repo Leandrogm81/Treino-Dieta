@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { User, Meal, Cardio, ProgressLog, UserGoals, WaterLog } from '../types';
-import { useLocalStorage } from '../useAuth';
+import { useLocalStorage } from '../hooks/useAuth';
 import { getTodayData } from '../services/dataService';
 import { Card, Button, Modal, Input, ProgressBar } from '../components/ui';
 

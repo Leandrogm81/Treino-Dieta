@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import type { User, Cardio as CardioType } from '../types';
-import { useLocalStorage } from '../useAuth';
+import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Select } from '../components/ui';
 import { getTodayISO } from '../services/dataService';
 

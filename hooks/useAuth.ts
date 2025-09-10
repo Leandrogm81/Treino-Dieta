@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import type { User } from './types';
+import type { User } from '../types';
 
 // Simple hash function for demo purposes. In a real app, use a robust library like bcrypt.
 const simpleHash = async (password: string) => {

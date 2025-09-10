@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { useAuth } from './useAuth';
+import { useAuth } from './hooks/useAuth';
 import { AuthView } from './components/Auth';
 import { Layout } from './components/Layout';
 import { Dashboard } from './features/Dashboard';
