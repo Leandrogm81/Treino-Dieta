@@ -115,6 +115,20 @@ const parseFoodName = (name: string): ParsedName => {
         };
     }
 
+    // Pattern 4 (NEW): Handles "Arroz branco cozido 140 g" or "Frango 150g"
+    const unitsList = 'g|gramas|ml|un|unidade|unidades|colher|colheres|concha|conchas';
+    const quantLastPattern = new RegExp(`(.+?)\\s+(\\d+[\\.,]?\\d*)\\s*(${unitsList})$`, 'i');
+    const quantLastMatch = originalName.match(quantLastPattern);
+
+    if (quantLastMatch) {
+        return {
+            foodName: quantLastMatch[1].trim(),
+            quantity: parseFloat(quantLastMatch[2].replace(',', '.')) || 1,
+            // Improved singularization
+            unit: quantLastMatch[3].toLowerCase().replace(/es$/, '').replace(/s$/, ''),
+        };
+    }
+
     return { foodName: originalName, quantity: 1, unit: 'un' };
 };
 
