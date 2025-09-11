@@ -6,19 +6,56 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>App de Treino e Dieta</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        --color-primary: 20 184 166; /* #14b8a6 */
+        --color-primary-focus: 13 148 136; /* #0d9488 */
+        --color-secondary: 99 102 241; /* #6366f1 */
+        --color-secondary-focus: 79 70 229; /* indigo-600 */
+        --color-background: 241 245 249; /* gray-100 */
+        --color-surface: 255 255 255; /* white */
+        --color-text-primary: 17 24 39; /* gray-900 */
+        --color-text-secondary: 107 114 128; /* gray-500 */
+        --color-border: 209 213 219; /* gray-300 */
+        --color-danger: 220 38 38; /* red-600 */
+        --color-danger-focus: 185 28 28; /* red-700 */
+      }
+      .dark {
+        --color-primary: 20 184 166;
+        --color-primary-focus: 13 148 136;
+        --color-secondary: 99 102 241;
+        --color-secondary-focus: 79 70 229;
+        --color-background: 17 24 39; /* gray-900 */
+        --color-surface: 31 41 55; /* gray-800 */
+        --color-text-primary: 249 250 251; /* gray-50 */
+        --color-text-secondary: 156 163 175; /* gray-400 */
+        --color-border: 55 65 81; /* gray-700 */
+        --color-danger: 220 38 38;
+        --color-danger-focus: 185 28 28;
+      }
+      body {
+          background-color: rgb(var(--color-background));
+          color: rgb(var(--color-text-primary));
+          transition: background-color 0.3s ease, color 0.3s ease;
+      }
+    </style>
     <script>
       tailwind.config = {
         darkMode: 'class',
         theme: {
           extend: {
             colors: {
-              'primary': '#14b8a6', // teal-500
-              'primary-focus': '#0d9488', // teal-600
-              'secondary': '#6366f1', // indigo-500
-              'background': '#111827', // gray-900
-              'surface': '#1f2937', // gray-800
-              'text-primary': '#f9fafb', // gray-50
-              'text-secondary': '#9ca3af', // gray-400
+              primary: 'rgb(var(--color-primary) / <alpha-value>)',
+              'primary-focus': 'rgb(var(--color-primary-focus) / <alpha-value>)',
+              secondary: 'rgb(var(--color-secondary) / <alpha-value>)',
+              'secondary-focus': 'rgb(var(--color-secondary-focus) / <alpha-value>)',
+              background: 'rgb(var(--color-background) / <alpha-value>)',
+              surface: 'rgb(var(--color-surface) / <alpha-value>)',
+              'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
+              'text-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',
+              border: 'rgb(var(--color-border) / <alpha-value>)',
+              danger: 'rgb(var(--color-danger) / <alpha-value>)',
+              'danger-focus': 'rgb(var(--color-danger-focus) / <alpha-value>)',
             }
           }
         }
@@ -35,7 +72,7 @@
 }
 </script>
 </head>
-  <body class="bg-background">
+  <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

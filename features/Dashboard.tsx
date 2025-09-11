@@ -1,9 +1,11 @@
+
 import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { User, Meal, Cardio, ProgressLog, UserGoals, WaterLog } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { getTodayData } from '../services/dataService';
 import { Card, Button, Modal, Input, ProgressBar } from '../components/ui';
+import { useTheme } from '../hooks/useTheme';
 
 const parseNumber = (value: string | number): number => {
     return parseFloat(String(value).replace(',', '.')) || 0;
@@ -93,8 +95,27 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [goals, setGoals] = useLocalStorage<UserGoals>(`goals_${currentUser.id}`, { calories: 2000, protein: 150, carbs: 200, fat: 60, water: 2000 });
   const [waterLogs, setWaterLogs] = useLocalStorage<WaterLog[]>(`water_${currentUser.id}`, []);
   const [isGoalsModalOpen, setIsGoalsModalOpen] = useState(false);
+  const { theme } = useTheme();
 
-  // FIX: Add explicit types to ensure correct type inference from getTodayData.
+  const [chartColors, setChartColors] = React.useState({
+    grid: '', text: '', tooltipBg: '', tooltipBorder: '', primary: ''
+  });
+
+  React.useEffect(() => {
+    // Delay to ensure CSS variables are applied after theme switch
+    const timer = setTimeout(() => {
+        const style = getComputedStyle(document.documentElement);
+        setChartColors({
+            grid: `rgb(${style.getPropertyValue('--color-border')})`,
+            text: `rgb(${style.getPropertyValue('--color-text-secondary')})`,
+            tooltipBg: `rgb(${style.getPropertyValue('--color-surface')})`,
+            tooltipBorder: `rgb(${style.getPropertyValue('--color-border')})`,
+            primary: `rgb(${style.getPropertyValue('--color-primary')})`
+        });
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [theme]);
+
   const todayMeals: Meal[] = getTodayData(meals);
   const todayCardio: Cardio[] = getTodayData(cardio);
   const todayWater: WaterLog[] = getTodayData(waterLogs);
@@ -173,12 +194,12 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         {chartData.length > 1 ? (
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#4b5563" />
-            <XAxis dataKey="date" stroke="#9ca3af" />
-            <YAxis stroke="#9ca3af" unit="kg" domain={['dataMin - 2', 'dataMax + 2']} />
-            <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #4b5563' }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+            <XAxis dataKey="date" stroke={chartColors.text} />
+            <YAxis stroke={chartColors.text} unit="kg" domain={['dataMin - 2', 'dataMax + 2']} />
+            <Tooltip contentStyle={{ backgroundColor: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, color: chartColors.text }} />
             <Legend />
-            <Line type="monotone" dataKey="peso" stroke="#14b8a6" strokeWidth={2} activeDot={{ r: 8 }} />
+            <Line type="monotone" dataKey="peso" stroke={chartColors.primary} strokeWidth={2} activeDot={{ r: 8 }} />
           </LineChart>
         </ResponsiveContainer>
         ) : (

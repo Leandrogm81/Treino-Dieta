@@ -259,7 +259,29 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       setIsParsing(true);
       setParsingAttempted(true);
       const results = parseNutritionText(importText);
-      setParsedMeals(results.map((m, i) => ({ ...m, tempId: i, selected: true })));
+      
+      // Agrupamento de itens duplicados
+      const mealAggregator = new Map<string, Omit<MealTemplate, 'id'>>();
+
+      for (const meal of results) {
+          const key = `${meal.originalName.toLowerCase().trim()}|${meal.servingUnit}`;
+          
+          if (mealAggregator.has(key)) {
+              const existing = mealAggregator.get(key)!;
+              existing.servingSize += meal.servingSize;
+              existing.calories += meal.calories;
+              existing.protein += meal.protein;
+              existing.fat += meal.fat;
+              existing.carbs += meal.carbs;
+          } else {
+              // Criar uma cópia para evitar mutação
+              mealAggregator.set(key, { ...meal }); 
+          }
+      }
+
+      const aggregatedResults = Array.from(mealAggregator.values());
+
+      setParsedMeals(aggregatedResults.map((m, i) => ({ ...m, tempId: i, selected: true })));
       setIsParsing(false);
   }
 

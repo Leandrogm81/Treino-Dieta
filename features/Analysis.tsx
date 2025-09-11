@@ -1,14 +1,44 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { User, ProgressLog, Exercise, Meal, Cardio, AllUserData, BackupData, MealTemplate, ExerciseTemplate } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Select, Modal } from '../components/ui';
 import { checkAchievements, exportToCsv, getTodayISO, exportAllDataToJson } from '../services/dataService';
-
-type Tab = 'Progresso' | 'Conquistas' | 'Gerenciar Dados' | 'Admin';
+import { useTheme } from '../hooks/useTheme';
 
 const parseNumber = (value: string | number): number => {
     return parseFloat(String(value).replace(',', '.')) || 0;
+};
+
+// ====================================================================================
+// Chart Colors Hook
+// ====================================================================================
+const useChartColors = () => {
+    const { theme } = useTheme();
+    const [colors, setColors] = useState({
+        grid: '', text: '', tooltipBg: '', tooltipBorder: '',
+        primary: '', secondary: '', danger: ''
+    });
+
+    useEffect(() => {
+        // Delay to ensure CSS variables are applied
+        const timer = setTimeout(() => {
+            const style = getComputedStyle(document.documentElement);
+            setColors({
+                grid: `rgb(${style.getPropertyValue('--color-border')})`,
+                text: `rgb(${style.getPropertyValue('--color-text-secondary')})`,
+                tooltipBg: `rgb(${style.getPropertyValue('--color-surface')})`,
+                tooltipBorder: `rgb(${style.getPropertyValue('--color-border')})`,
+                primary: `rgb(${style.getPropertyValue('--color-primary')})`,
+                secondary: `rgb(${style.getPropertyValue('--color-secondary')})`,
+                danger: `rgb(${style.getPropertyValue('--color-danger')})`,
+            });
+        }, 50);
+        return () => clearTimeout(timer);
+    }, [theme]);
+
+    return colors;
 };
 
 // ====================================================================================
@@ -34,6 +64,7 @@ const timeRangeOptions = [
 
 const BodyEvolutionTab: React.FC<{ progress: ProgressLog[] }> = ({ progress }) => {
     const [timeRange, setTimeRange] = useState('all');
+    const chartColors = useChartColors();
 
     const filteredData = useMemo(() => {
         if (!progress || progress.length === 0) return [];
@@ -68,7 +99,7 @@ const BodyEvolutionTab: React.FC<{ progress: ProgressLog[] }> = ({ progress }) =
                 <div className="flex flex-wrap gap-2">
                     {timeRangeOptions.map(opt => (
                         <button key={opt.value} onClick={() => setTimeRange(opt.value)}
-                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${timeRange === opt.value ? 'bg-primary text-white' : 'bg-gray-700 hover:bg-gray-600'}`}>
+                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${timeRange === opt.value ? 'bg-primary text-white' : 'bg-background hover:bg-gray-600'}`}>
                             {opt.label}
                         </button>
                     ))}
@@ -77,15 +108,15 @@ const BodyEvolutionTab: React.FC<{ progress: ProgressLog[] }> = ({ progress }) =
             {filteredData.length > 1 ? (
                 <ResponsiveContainer width="100%" height={400}>
                     <LineChart data={filteredData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#4b5563" />
-                        <XAxis dataKey="date" stroke="#9ca3af" />
-                        <YAxis stroke="#9ca3af" yAxisId="left" unit="kg" />
-                        <YAxis stroke="#9ca3af" yAxisId="right" orientation="right" unit="%" />
-                        <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #4b5563' }} />
+                        <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                        <XAxis dataKey="date" stroke={chartColors.text} />
+                        <YAxis stroke={chartColors.text} yAxisId="left" unit="kg" />
+                        <YAxis stroke={chartColors.text} yAxisId="right" orientation="right" unit="%" />
+                        <Tooltip contentStyle={{ backgroundColor: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, color: chartColors.text }} />
                         <Legend />
-                        <Line yAxisId="left" type="monotone" dataKey="Peso" stroke="#14b8a6" strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
-                        <Line yAxisId="left" type="monotone" dataKey="Massa Muscular" stroke="#ef4444" strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
-                        <Line yAxisId="right" type="monotone" dataKey="Gordura Corporal" stroke="#6366f1" strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
+                        <Line yAxisId="left" type="monotone" dataKey="Peso" stroke={chartColors.primary} strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
+                        <Line yAxisId="left" type="monotone" dataKey="Massa Muscular" stroke={chartColors.danger} strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
+                        <Line yAxisId="right" type="monotone" dataKey="Gordura Corporal" stroke={chartColors.secondary} strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
                     </LineChart>
                 </ResponsiveContainer>
             ) : (
@@ -105,13 +136,14 @@ const circumferenceMetrics: { key: keyof Omit<ProgressLog, 'id' | 'userId' | 'da
 ];
 
 const MeasurementsTab: React.FC<{ progress: ProgressLog[] }> = ({ progress }) => {
+    const chartColors = useChartColors();
+
     const dataByMetric = useMemo(() => {
         return circumferenceMetrics.map(metric => {
             const data = progress
                 .map(p => ({ date: p.date, value: p[metric.key] as number | undefined ?? 0 }))
                 .filter(p => p.value > 0);
             
-            // FIX: Ensure all objects returned have a consistent shape to prevent TypeScript errors.
             if (data.length === 0) return { ...metric, latest: null, changeSincePrevious: 0, changeSinceFirst: 0, chartData: [] };
             
             const latest = data[data.length - 1];
@@ -145,8 +177,8 @@ const MeasurementsTab: React.FC<{ progress: ProgressLog[] }> = ({ progress }) =>
                                 {metric.chartData && metric.chartData.length > 1 && (
                                     <ResponsiveContainer width="100%" height="100%">
                                         <LineChart data={metric.chartData}>
-                                            <Tooltip contentStyle={{ backgroundColor: '#1f2937' }} wrapperClassName="text-xs" />
-                                            <Line type="monotone" dataKey="value" stroke="#14b8a6" strokeWidth={2} dot={false} />
+                                            <Tooltip contentStyle={{ backgroundColor: chartColors.tooltipBg, color: chartColors.text }} wrapperClassName="text-xs" />
+                                            <Line type="monotone" dataKey="value" stroke={chartColors.primary} strokeWidth={2} dot={false} />
                                         </LineChart>
                                     </ResponsiveContainer>
                                 )}
@@ -163,6 +195,7 @@ const MeasurementsTab: React.FC<{ progress: ProgressLog[] }> = ({ progress }) =>
 
 const PerformanceTab: React.FC<{ exercises: Exercise[] }> = ({ exercises }) => {
     const [selectedExercise, setSelectedExercise] = useState<string>('');
+    const chartColors = useChartColors();
     const uniqueExercises = useMemo(() => exercises.map(e => e.name).filter((value, index, self) => self.indexOf(value) === index), [exercises]);
 
     const loadProgressionData = useMemo(() => {
@@ -198,11 +231,11 @@ const PerformanceTab: React.FC<{ exercises: Exercise[] }> = ({ exercises }) => {
                     {loadProgressionData.length > 1 ? (
                         <ResponsiveContainer width="100%" height={250}>
                             <LineChart data={loadProgressionData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#4b5563" />
-                                <XAxis dataKey="date" stroke="#9ca3af" />
-                                <YAxis stroke="#9ca3af" unit="kg" domain={['dataMin - 5', 'dataMax + 5']} />
-                                <Tooltip contentStyle={{ backgroundColor: '#1f2937' }} />
-                                <Line type="monotone" dataKey="Carga" stroke="#6366f1" />
+                                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                                <XAxis dataKey="date" stroke={chartColors.text} />
+                                <YAxis stroke={chartColors.text} unit="kg" domain={['dataMin - 5', 'dataMax + 5']} />
+                                <Tooltip contentStyle={{ backgroundColor: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, color: chartColors.text }} />
+                                <Line type="monotone" dataKey="Carga" stroke={chartColors.secondary} />
                             </LineChart>
                         </ResponsiveContainer>
                     ) : <p className="text-text-secondary text-center py-10">Selecione um exercício com pelo menos 2 registros.</p>}
@@ -212,11 +245,11 @@ const PerformanceTab: React.FC<{ exercises: Exercise[] }> = ({ exercises }) => {
                     {volumeData.length > 1 ? (
                         <ResponsiveContainer width="100%" height={250}>
                             <BarChart data={volumeData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#4b5563" />
-                                <XAxis dataKey="date" stroke="#9ca3af" />
-                                <YAxis stroke="#9ca3af" />
-                                <Tooltip contentStyle={{ backgroundColor: '#1f2937' }} />
-                                <Bar dataKey="Volume" fill="#14b8a6" />
+                                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                                <XAxis dataKey="date" stroke={chartColors.text} />
+                                <YAxis stroke={chartColors.text} />
+                                <Tooltip contentStyle={{ backgroundColor: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, color: chartColors.text }} />
+                                <Bar dataKey="Volume" fill={chartColors.primary} />
                             </BarChart>
                         </ResponsiveContainer>
                     ) : <p className="text-text-secondary text-center py-10">Registre ao menos dois treinos com carga.</p>}
@@ -237,7 +270,8 @@ const RegisterTab: React.FC<{
     setProgress: (value: ProgressLog[] | ((val: ProgressLog[]) => ProgressLog[])) => void;
     currentUser: User;
 }> = ({ progress, setProgress, currentUser }) => {
-    const [formData, setFormData] = useState(initialProgressFormState);
+    // FIX: Add explicit type to useState to fix type inference issue.
+    const [formData, setFormData] = useState<ProgressFormData>(initialProgressFormState);
     const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     useEffect(() => {
@@ -260,7 +294,8 @@ const RegisterTab: React.FC<{
         }
         
         const numericFormData = Object.fromEntries(
-            Object.entries(formData).map(([key, value]) => [key, parseNumber(value)])
+            // FIX: Explicitly convert value to string to resolve 'unknown' type from Object.entries.
+            Object.entries(formData).map(([key, value]) => [key, parseNumber(String(value))])
         ) as Omit<ProgressLog, 'id' | 'userId' | 'date'>;
 
         const newLog: ProgressLog = { ...numericFormData, id: crypto.randomUUID(), userId: currentUser.id, date: new Date().toISOString() };
@@ -305,7 +340,7 @@ const ProgressView: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
     return (
         <div className="space-y-4">
-            <div className="border-b border-gray-700">
+            <div className="border-b border-border">
                 <nav className="-mb-px flex space-x-6 overflow-x-auto">
                     {progressSubTabs.map(tab => (
                         <SubTabButton key={tab} label={tab} isActive={activeSubTab === tab} onClick={() => setActiveSubTab(tab)} />
@@ -532,6 +567,9 @@ const AdminTab: React.FC<{ users: User[], createUser: (u: string, p: string) => 
     )
 }
 
+// FIX: Define Tab type to be used in the component state.
+type Tab = 'Progresso' | 'Conquistas' | 'Gerenciar Dados' | 'Admin';
+
 export const Analysis: React.FC<{ currentUser: User, allUsers: User[], createUser: (u: string, p: string) => Promise<boolean> }> = ({ currentUser, allUsers, createUser }) => {
   const [activeTab, setActiveTab] = useState<Tab>('Progresso');
   const TABS: Tab[] = ['Progresso', 'Conquistas', 'Gerenciar Dados'];
@@ -550,7 +588,7 @@ export const Analysis: React.FC<{ currentUser: User, allUsers: User[], createUse
   return (
     <div className="space-y-6">
       <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Análise e Mais</h1>
-      <div className="border-b border-gray-700">
+      <div className="border-b border-border">
         <nav className="-mb-px flex space-x-6 overflow-x-auto">
           {TABS.map(tab => (
             <button

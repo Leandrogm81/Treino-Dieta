@@ -3,6 +3,7 @@ import React from 'react';
 import type { User } from '../types';
 import { NAV_ITEMS } from '../constants';
 import type { NavItemType } from '../constants';
+import { ThemeToggle } from './ThemeToggle';
 
 interface LayoutProps {
   currentUser: User;
@@ -11,6 +12,12 @@ interface LayoutProps {
   activePage: NavItemType;
   setActivePage: (page: NavItemType) => void;
 }
+
+const LogoutIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+    </svg>
+);
 
 const Sidebar: React.FC<Omit<LayoutProps, 'children'>> = ({ currentUser, logout, activePage, setActivePage }) => {
   return (
@@ -23,53 +30,88 @@ const Sidebar: React.FC<Omit<LayoutProps, 'children'>> = ({ currentUser, logout,
               <a
                 href="#"
                 onClick={(e) => { e.preventDefault(); setActivePage(item.name); }}
-                className={`flex items-center space-x-3 p-3 rounded-md transition-colors ${activePage === item.name ? 'bg-primary text-white' : 'hover:bg-gray-700'}`}
+                className={`flex items-center p-3 rounded-md transition-colors text-lg ${
+                  activePage === item.name
+                    ? 'bg-primary text-white font-semibold'
+                    : 'text-text-secondary hover:bg-background hover:text-text-primary'
+                }`}
               >
                 {item.icon}
-                <span>{item.name}</span>
+                <span className="ml-4">{item.name}</span>
               </a>
             </li>
           ))}
         </ul>
       </nav>
-      <div className="mt-auto">
-        <div className="text-sm text-text-secondary">Logado como:</div>
-        <div className="font-semibold">{currentUser.username} {currentUser.isAdmin && '👑'}</div>
-        <button onClick={logout} className="w-full mt-4 text-left p-3 rounded-md hover:bg-red-800 transition-colors flex items-center space-x-3">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            <span>Sair</span>
-        </button>
-      </div>
+       <div className="border-t border-border pt-4">
+            <div className="flex items-center">
+                <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center font-bold text-white">
+                    {currentUser.username.charAt(0).toUpperCase()}
+                </div>
+                <span className="ml-3 font-semibold">{currentUser.username}</span>
+            </div>
+            <button onClick={logout} className="w-full mt-4 flex items-center justify-center text-text-secondary hover:text-primary p-2 rounded-md hover:bg-background transition-colors">
+                <LogoutIcon className="w-5 h-5 mr-2" /> Sair
+            </button>
+       </div>
     </aside>
   );
 };
 
-const BottomNav: React.FC<Omit<LayoutProps, 'children' | 'logout' | 'currentUser'>> = ({ activePage, setActivePage }) => {
+const MobileBottomNav: React.FC<{ activePage: NavItemType; setActivePage: (page: NavItemType) => void; }> = ({ activePage, setActivePage }) => {
     return (
-        <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-gray-700 flex justify-around md:hidden z-10">
-            {NAV_ITEMS.map(item => (
-                <a
-                    href="#"
-                    key={item.name}
-                    onClick={(e) => { e.preventDefault(); setActivePage(item.name); }}
-                    className={`flex flex-col items-center justify-center p-2 w-full transition-colors ${activePage === item.name ? 'text-primary' : 'text-text-secondary hover:text-primary'}`}
-                >
-                    {item.icon}
-                    <span className="text-xs mt-1">{item.name}</span>
-                </a>
-            ))}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-10">
+            <ul className="flex justify-around items-center h-16">
+                {NAV_ITEMS.map(item => (
+                    <li key={item.name}>
+                        <a
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); setActivePage(item.name); }}
+                            className={`flex flex-col items-center justify-center w-16 transition-colors ${
+                                activePage === item.name ? 'text-primary' : 'text-text-secondary'
+                            }`}
+                        >
+                            {item.icon}
+                            <span className="text-xs mt-1">{item.name}</span>
+                        </a>
+                    </li>
+                ))}
+            </ul>
         </nav>
     );
-}
+};
 
-export const Layout: React.FC<LayoutProps> = ({ children, ...props }) => {
-  return (
-    <div className="flex h-screen bg-background text-text-primary">
-      <Sidebar {...props} />
-      <main className="flex-1 p-4 sm:p-8 overflow-y-auto pb-20 md:pb-8">
-        {children}
-      </main>
-      <BottomNav activePage={props.activePage} setActivePage={props.setActivePage} />
-    </div>
-  );
+export const Layout: React.FC<LayoutProps> = ({ children, currentUser, logout, activePage, setActivePage }) => {
+    return (
+        <div className="flex h-screen bg-background">
+            <Sidebar currentUser={currentUser} logout={logout} activePage={activePage} setActivePage={setActivePage} />
+            
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <header className="md:hidden flex justify-between items-center p-4 bg-surface border-b border-border shadow-md">
+                    <div className="text-xl font-bold text-primary">FitTrack</div>
+                    <div className="flex items-center gap-2">
+                        <ThemeToggle />
+                        <button onClick={logout} className="p-2 rounded-full text-text-secondary hover:text-primary hover:bg-background transition-colors" aria-label="Sair">
+                            <LogoutIcon className="w-6 h-6"/>
+                        </button>
+                    </div>
+                </header>
+
+                <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6 md:p-8 pb-20 md:pb-8">
+                     <div className="hidden md:flex justify-end mb-4 items-center gap-4">
+                        <div className="flex items-center">
+                            <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center font-bold text-white text-sm">
+                                {currentUser.username.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="ml-2 font-semibold text-text-secondary">{currentUser.username}</span>
+                        </div>
+                        <ThemeToggle />
+                    </div>
+                    {children}
+                </main>
+            </div>
+            
+            <MobileBottomNav activePage={activePage} setActivePage={setActivePage} />
+        </div>
+    );
 };

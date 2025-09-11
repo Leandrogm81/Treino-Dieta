@@ -1,4 +1,6 @@
 
+import type { ReactNode } from 'react';
+
 export interface User {
   id: string;
   username: string;
@@ -67,7 +69,8 @@ export interface Achievement {
   id: string;
   title: string;
   description: string;
-  icon: React.ReactNode;
+  // FIX: Changed React.ReactNode to ReactNode
+  icon: ReactNode;
   unlocked: boolean;
 }
 

@@ -26,7 +26,8 @@ export const parseWorkoutText = (text: string): Omit<ExerciseTemplate, 'id'>[] =
 
 // Ex: - 3 ovos cozidos: 210 Kcal | 18g proteína | 1g carboidrato | 15g gordura
 // Handles optional leading dash, extra spaces, and optional 'g' for macros
-const MEAL_REGEX = /^\s*(?:-\s*)?(.+?):\s*(\d+(\.\d+)?)\s*Kcal\s*\|\s*(\d+(\.\d+)?)\s*g?\s*proteína\s*\|\s*(\d+(\.\d+)?)\s*g?\s*carboidrato\s*\|\s*(\d+(\.\d+)?)\s*g?\s*gordura/i;
+// Now with flexible separators (:, —, –, -) and number format (, or .)
+const MEAL_REGEX = /^\s*(?:-\s*)?(.+?)\s*[:–—-]\s*(\d+([.,]\d+)?)\s*Kcal\s*[|–—-]\s*(\d+([.,]\d+)?)\s*g?\s*proteína\s*[|–—-]\s*(\d+([.,]\d+)?)\s*g?\s*carboidrato\s*[|–—-]\s*(\d+([.,]\d+)?)\s*g?\s*gordura/i;
 
 interface ParsedName {
     foodName: string;
@@ -123,22 +124,28 @@ export const parseNutritionText = (text: string): Omit<MealTemplate, 'id'>[] => 
     const meals: Omit<MealTemplate, 'id'>[] = [];
 
     for (const line of lines) {
+        // Ignorar cabeçalhos ou linhas que não parecem ser de refeições (ex: "Café da Manhã")
+        if (!line.toLowerCase().includes('kcal')) {
+            continue;
+        }
+
         const match = line.match(MEAL_REGEX);
         if (match) {
             const [
                 , 
                 name, 
-                calories, , 
-                protein, , 
-                carbs, , 
+                calories, ,
+                protein, ,
+                carbs, ,
                 fat
             ] = match;
             
             const { foodName, quantity, unit } = parseFoodName(name);
-            const totalCalories = parseFloat(calories) || 0;
-            const totalProtein = parseFloat(protein) || 0;
-            const totalCarbs = parseFloat(carbs) || 0;
-            const totalFat = parseFloat(fat) || 0;
+            // Usar replace para lidar com ponto e vírgula como separadores decimais
+            const totalCalories = parseFloat(calories.replace(',', '.')) || 0;
+            const totalProtein = parseFloat(protein.replace(',', '.')) || 0;
+            const totalCarbs = parseFloat(carbs.replace(',', '.')) || 0;
+            const totalFat = parseFloat(fat.replace(',', '.')) || 0;
 
             meals.push({
                 originalName: foodName,
