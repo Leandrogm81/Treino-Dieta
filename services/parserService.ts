@@ -25,9 +25,9 @@ export const parseWorkoutText = (text: string): Omit<ExerciseTemplate, 'id'>[] =
 
 
 // Ex: - 3 ovos cozidos: 210 Kcal | 18g proteína | 1g carboidrato | 15g gordura
-// Handles optional leading dash, extra spaces, and optional 'g' for macros
-// Now with flexible separators (:, —, –, -) and number format (, or .)
-const MEAL_REGEX = /^\s*(?:-\s*)?(.+?)\s*[:–—-]\s*(\d+([.,]\d+)?)\s*Kcal\s*[|–—-]\s*(\d+([.,]\d+)?)\s*g?\s*proteína\s*[|–—-]\s*(\d+([.,]\d+)?)\s*g?\s*carboidrato\s*[|–—-]\s*(\d+([.,]\d+)?)\s*g?\s*gordura/i;
+// Ex: Sobrecoxa de frango (170 g com osso -> 119 g carne) — 220 kcal | 27 g de proteína | 0 g de carboidratos | 12 g de gorduras
+// Handles flexible separators, complex names, and formats like "g de proteína".
+const MEAL_REGEX = /^\s*(?:-\s*)?(.+?)\s*[:–—-]\s*(\d+([.,]\d+)?)\s*k?cal\s*[|–—-]\s*(\d+([.,]\d+)?)\s*g(?:\s*de)?\s*proteínas?\s*[|–—-]\s*(\d+([.,]\d+)?)\s*g(?:\s*de)?\s*carboidratos?\s*[|–—-]\s*(\d+([.,]\d+)?)\s*g(?:\s*de)?\s*gorduras?/i;
 
 interface ParsedName {
     foodName: string;
@@ -125,7 +125,7 @@ export const parseNutritionText = (text: string): Omit<MealTemplate, 'id'>[] => 
 
     for (const line of lines) {
         // Ignorar cabeçalhos ou linhas que não parecem ser de refeições (ex: "Café da Manhã")
-        if (!line.toLowerCase().includes('kcal')) {
+        if (!line.toLowerCase().includes('kcal') && !line.toLowerCase().includes('cal')) {
             continue;
         }
 
