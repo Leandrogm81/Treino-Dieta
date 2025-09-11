@@ -86,6 +86,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [isSelectionModalOpen, setSelectionModalOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [parsedMeals, setParsedMeals] = useState<ParsedMeal[]>([]);
+  const [rawParsedMeals, setRawParsedMeals] = useState<Omit<MealTemplate, 'id'>[]>([]);
   const [baseParsedTemplates, setBaseParsedTemplates] = useState<Map<string, Omit<MealTemplate, 'id'>>>(new Map());
   const [isParsing, setIsParsing] = useState(false);
   const [parsingAttempted, setParsingAttempted] = useState(false);
@@ -252,6 +253,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
   const openImportModal = () => {
     setParsedMeals([]);
+    setRawParsedMeals([]);
     setParsingAttempted(false);
     setImportText('');
     setImportModalOpen(true);
@@ -261,6 +263,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       setIsParsing(true);
       setParsingAttempted(true);
       const results = parseNutritionText(importText);
+      setRawParsedMeals(results);
       
       const mealAggregator = new Map<string, Omit<MealTemplate, 'id'>>();
       const baseTemplates = new Map<string, Omit<MealTemplate, 'id'>>();
@@ -310,14 +313,61 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     setImportModalOpen(false);
   }
 
+  const handleImportAndAdd = () => {
+    if (rawParsedMeals.length === 0) {
+        setFeedback({ message: 'Nenhum item válido encontrado ou processado.', type: 'info' });
+        return;
+    }
+
+    // 1. Create new models silently from raw data
+    setMealTemplates(prevTemplates => {
+        const existingNames = new Set(prevTemplates.map(t => t.name));
+        const newTemplates: MealTemplate[] = [];
+        const processedInThisBatch = new Set<string>();
+
+        for (const item of rawParsedMeals) {
+            if (!existingNames.has(item.name) && !processedInThisBatch.has(item.name)) {
+                // Use the first occurrence as the base template
+                newTemplates.push({ ...item, id: crypto.randomUUID() });
+                processedInThisBatch.add(item.name);
+            }
+        }
+        return [...prevTemplates, ...newTemplates];
+    });
+
+    // 2. Add all raw items to today's meals
+    const newMealsForToday: Meal[] = rawParsedMeals.map(item => ({
+        id: crypto.randomUUID(),
+        userId: currentUser.id,
+        date: new Date().toISOString(),
+        name: item.originalName,
+        quantity: item.servingSize,
+        unit: item.servingUnit,
+        calories: item.calories,
+        protein: item.protein,
+        fat: item.fat,
+        carbs: item.carbs,
+    }));
+    setMeals(prev => [...prev, ...newMealsForToday]);
+
+    // 3. Close modal and show feedback
+    setImportModalOpen(false);
+    setFeedback({ message: 'Refeições importadas e adicionadas ao seu dia com sucesso!', type: 'success' });
+  };
+
   const toggleParsedMealSelection = (tempId: number) => {
     setParsedMeals(prev => prev.map(m => m.tempId === tempId ? { ...m, selected: !m.selected } : m));
   }
   
   const importModalFooter = parsedMeals.length > 0 ? (
-      <Button onClick={handleSaveSelectedTemplates} className="w-full">
-          Salvar Modelos Selecionados
-      </Button>
+    <div className="flex flex-col sm:flex-row gap-4">
+        <Button onClick={handleSaveSelectedTemplates} className="w-full" variant="secondary">
+            Apenas Criar Modelos
+        </Button>
+        <Button onClick={handleImportAndAdd} className="w-full">
+            Importar e Adicionar ao Dia de Hoje
+        </Button>
+    </div>
   ) : null;
 
   const todayMeals = getTodayData(meals);
