@@ -85,6 +85,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [isSelectionModalOpen, setSelectionModalOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [parsedMeals, setParsedMeals] = useState<ParsedMeal[]>([]);
+  const [baseParsedTemplates, setBaseParsedTemplates] = useState<Map<string, Omit<MealTemplate, 'id'>>>(new Map());
   const [isParsing, setIsParsing] = useState(false);
   const [parsingAttempted, setParsingAttempted] = useState(false);
   const isMobile = useIsMobile();
@@ -260,8 +261,8 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       setParsingAttempted(true);
       const results = parseNutritionText(importText);
       
-      // Agrupamento de itens duplicados
       const mealAggregator = new Map<string, Omit<MealTemplate, 'id'>>();
+      const baseTemplates = new Map<string, Omit<MealTemplate, 'id'>>();
 
       for (const meal of results) {
           const key = `${meal.originalName.toLowerCase().trim()}|${meal.servingUnit}`;
@@ -274,25 +275,32 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
               existing.fat += meal.fat;
               existing.carbs += meal.carbs;
           } else {
-              // Criar uma cópia para evitar mutação
+              // First time seeing this item. Store it for aggregation and as the base template.
               mealAggregator.set(key, { ...meal }); 
+              baseTemplates.set(key, { ...meal });
           }
       }
 
       const aggregatedResults = Array.from(mealAggregator.values());
 
       setParsedMeals(aggregatedResults.map((m, i) => ({ ...m, tempId: i, selected: true })));
+      setBaseParsedTemplates(baseTemplates);
       setIsParsing(false);
   }
 
   const handleSaveSelectedTemplates = () => {
-    const newTemplatesRaw = parsedMeals
+    const newTemplatesToSave = parsedMeals
         .filter(m => m.selected)
-        .map(({ tempId, selected, ...mealData }) => mealData);
+        .map(selectedAggregatedMeal => {
+             const key = `${selectedAggregatedMeal.originalName.toLowerCase().trim()}|${selectedAggregatedMeal.servingUnit}`;
+             // Retrieve the base template (first occurrence) instead of using the aggregated one
+             return baseParsedTemplates.get(key);
+        })
+        .filter((template): template is Omit<MealTemplate, 'id'> => !!template); // Filter out any undefined results
     
     setMealTemplates(prev => {
         const existingNormalizedNames = new Set(prev.map(t => t.name));
-        const uniqueNewTemplates = newTemplatesRaw
+        const uniqueNewTemplates = newTemplatesToSave
             .filter(t => !existingNormalizedNames.has(t.name))
             .map(t => ({...t, id: crypto.randomUUID()}));
         return [...prev, ...uniqueNewTemplates];
