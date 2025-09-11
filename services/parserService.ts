@@ -62,10 +62,26 @@ export const normalizeName = (name: string): string => {
 
 const parseFoodName = (name: string): ParsedName => {
     const originalName = name.trim();
+
+    // Pattern to handle "Arroz branco cozido 140 g" or "Frango 150g".
+    // This pattern is prioritized to correctly extract quantity and unit from the end of the name string.
+    const unitsList = 'g|gramas|kg|ml|un|unidade|unidades|colher|colheres|concha|conchas';
+    const quantLastPattern = new RegExp(`(.+?)\\s+(\\d+[\\.,]?\\d*)\\s*(${unitsList})$`, 'i');
+    const quantLastMatch = originalName.match(quantLastPattern);
+
+    if (quantLastMatch) {
+        return {
+            foodName: quantLastMatch[1].trim(),
+            quantity: parseFloat(quantLastMatch[2].replace(',', '.')) || 1,
+            // Improved singularization
+            unit: quantLastMatch[3].toLowerCase().replace(/es$/, '').replace(/s$/, ''),
+        };
+    }
+
     const unitsRegex = /(g|ml|un|unidade|colher|concha)/i;
 
     // Pattern for complex recipes - treat as single unit
-    if (originalName.includes('+') || originalName.includes(' com ') || originalName.match(/\d/g)?.length > 2) {
+    if (originalName.includes('+') || originalName.includes(' com ')) {
          return { foodName: originalName, quantity: 1, unit: 'un' };
     }
 
@@ -114,21 +130,8 @@ const parseFoodName = (name: string): ParsedName => {
             foodName: quantFirstMatch[2].trim(),
         };
     }
-
-    // Pattern 4 (NEW): Handles "Arroz branco cozido 140 g" or "Frango 150g"
-    const unitsList = 'g|gramas|ml|un|unidade|unidades|colher|colheres|concha|conchas';
-    const quantLastPattern = new RegExp(`(.+?)\\s+(\\d+[\\.,]?\\d*)\\s*(${unitsList})$`, 'i');
-    const quantLastMatch = originalName.match(quantLastPattern);
-
-    if (quantLastMatch) {
-        return {
-            foodName: quantLastMatch[1].trim(),
-            quantity: parseFloat(quantLastMatch[2].replace(',', '.')) || 1,
-            // Improved singularization
-            unit: quantLastMatch[3].toLowerCase().replace(/es$/, '').replace(/s$/, ''),
-        };
-    }
-
+    
+    // Fallback for names without explicit quantity
     return { foodName: originalName, quantity: 1, unit: 'un' };
 };
 
