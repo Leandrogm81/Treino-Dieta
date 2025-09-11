@@ -132,7 +132,7 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const chartData = [...progress]
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .map(p => ({
-      date: new Date(p.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      date: new Date(p.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' }),
       peso: p.weight,
     }));
 

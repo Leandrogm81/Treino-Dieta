@@ -56,9 +56,30 @@ export const exportAllDataToJson = (data: object, filename: string) => {
     }
 };
 
-export const getTodayISO = () => new Date().toISOString().split('T')[0];
+const brazilDateFormatter = new Intl.DateTimeFormat('fr-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+});
+
+export const getTodayISO = () => {
+    return brazilDateFormatter.format(new Date());
+};
 
 export const getTodayData = <T extends { date: string },>(data: T[]) => {
     const today = getTodayISO();
-    return data.filter(item => item.date.startsWith(today));
+    return data.filter(item => {
+        // Converts item's UTC date to Brazil's date string for comparison
+        const itemDateInBrazil = brazilDateFormatter.format(new Date(item.date));
+        return itemDateInBrazil === today;
+    });
+};
+
+export const hasTodayLog = <T extends { date: string },>(data: T[]): boolean => {
+    const today = getTodayISO();
+    return data.some(item => {
+        const itemDateInBrazil = brazilDateFormatter.format(new Date(item.date));
+        return itemDateInBrazil === today;
+    });
 };

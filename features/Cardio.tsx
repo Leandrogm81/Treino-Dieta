@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
 import type { User, Cardio as CardioType } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Select } from '../components/ui';
-import { getTodayISO } from '../services/dataService';
+import { getTodayData } from '../services/dataService';
 
 const parseNumber = (value: string | number): number => {
     return parseFloat(String(value).replace(',', '.')) || 0;
@@ -59,7 +60,7 @@ export const Cardio: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     }
   };
 
-  const todayCardio = cardio.filter(c => c.date.startsWith(getTodayISO()));
+  const todayCardio = getTodayData(cardio);
 
   return (
     <div className="space-y-6">

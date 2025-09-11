@@ -1,8 +1,9 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Meal, MealTemplate } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Modal, Textarea, Spinner } from '../components/ui';
-import { getTodayISO } from '../services/dataService';
+import { getTodayData } from '../services/dataService';
 import { parseNutritionText, normalizeName } from '../services/parserService';
 import { ImportIcon } from '../constants';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -319,7 +320,7 @@ export const Nutrition: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       </Button>
   ) : null;
 
-  const todayMeals = meals.filter(m => m.date.startsWith(getTodayISO()));
+  const todayMeals = getTodayData(meals);
   
   const totals = todayMeals.reduce((acc, meal) => ({
       calories: acc.calories + meal.calories,

@@ -1,8 +1,9 @@
+
 import React, { useState, useMemo } from 'react';
 import type { User, Exercise, ExerciseTemplate } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Modal, Textarea, Spinner } from '../components/ui';
-import { getTodayISO } from '../services/dataService';
+import { getTodayData } from '../services/dataService';
 import { parseWorkoutText } from '../services/parserService';
 import { ImportIcon } from '../constants';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -202,7 +203,7 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       </Button>
   ) : null;
   
-  const todayExercises = exercises.filter(ex => ex.date.startsWith(getTodayISO()));
+  const todayExercises = getTodayData(exercises);
 
   return (
     <div className="space-y-6">

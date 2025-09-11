@@ -4,7 +4,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, L
 import type { User, ProgressLog, Exercise, Meal, Cardio, AllUserData, BackupData, MealTemplate, ExerciseTemplate } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Select, Modal } from '../components/ui';
-import { checkAchievements, exportToCsv, getTodayISO, exportAllDataToJson } from '../services/dataService';
+import { checkAchievements, exportToCsv, hasTodayLog, exportAllDataToJson } from '../services/dataService';
 import { useTheme } from '../hooks/useTheme';
 
 const parseNumber = (value: string | number): number => {
@@ -85,7 +85,7 @@ const BodyEvolutionTab: React.FC<{ progress: ProgressLog[] }> = ({ progress }) =
             .filter(p => new Date(p.date) >= startDate)
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
             .map(p => ({
-                date: new Date(p.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                date: new Date(p.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' }),
                 Peso: p.weight > 0 ? p.weight : null,
                 'Gordura Corporal': p.bodyFat && p.bodyFat > 0 ? p.bodyFat : null,
                 'Massa Muscular': p.muscleMass && p.muscleMass > 0 ? p.muscleMass : null,
@@ -203,19 +203,23 @@ const PerformanceTab: React.FC<{ exercises: Exercise[] }> = ({ exercises }) => {
         return exercises
             .filter(e => e.name === selectedExercise)
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-            .map(e => ({ date: new Date(e.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), Carga: e.load }));
+            .map(e => ({ date: new Date(e.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' }), Carga: e.load }));
     }, [selectedExercise, exercises]);
 
     const volumeData = useMemo(() => {
+        const dateKeyFormatter = new Intl.DateTimeFormat('fr-CA', { timeZone: 'America/Sao_Paulo' }); // YYYY-MM-DD for grouping
         const volumeByDate: { [date: string]: number } = {};
         exercises.forEach(e => {
-            const date = e.date.split('T')[0];
+            const date = dateKeyFormatter.format(new Date(e.date));
             const volume = (volumeByDate[date] || 0) + (e.sets * e.reps * e.load);
             volumeByDate[date] = volume;
         });
         return Object.entries(volumeByDate)
             .sort((a,b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
-            .map(([date, volume]) => ({ date: new Date(date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), Volume: volume / 1000 }));
+            .map(([date, volume]) => ({ 
+                date: new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' }), // Use UTC to prevent timezone shift from YYYY-MM-DD string
+                Volume: volume / 1000 
+            }));
     }, [exercises]);
 
     return (
@@ -288,7 +292,7 @@ const RegisterTab: React.FC<{
     const handleProgressSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         setFeedbackMessage(null);
-        if (progress.some(log => log.date.startsWith(getTodayISO()))) {
+        if (hasTodayLog(progress)) {
             setFeedbackMessage({ type: 'error', text: 'Você já registrou suas medidas hoje.' });
             return;
         }
