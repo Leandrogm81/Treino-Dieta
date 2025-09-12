@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import type { User, Meal, Cardio, ProgressLog, UserGoals, WaterLog } from '../types';
+import type { User, Meal, Cardio, ProgressLog, UserGoals, WaterLog, StepLog, WorkoutSession } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { getTodayData } from '../services/dataService';
 import { Card, Button, Modal, Input, ProgressBar } from '../components/ui';
@@ -9,6 +9,37 @@ import { useTheme } from '../hooks/useTheme';
 
 const parseNumber = (value: string | number): number => {
     return parseFloat(String(value).replace(',', '.')) || 0;
+};
+
+const STEP_DATA = [
+  { steps: 4000, kcal: 356 }, { steps: 5000, kcal: 445 },
+  { steps: 6000, kcal: 534 }, { steps: 7000, kcal: 623 },
+  { steps: 8000, kcal: 712 }, { steps: 9000, kcal: 801 },
+  { steps: 10000, kcal: 890 }, { steps: 11000, kcal: 979 },
+  { steps: 12000, kcal: 1068 }, { steps: 13000, kcal: 1157 },
+  { steps: 14000, kcal: 1246 }, { steps: 15000, kcal: 1335 },
+];
+
+const calculateStepCalories = (steps: number): number => {
+  if (steps <= 0) return 0;
+  
+  const p1 = [...STEP_DATA].reverse().find(p => p.steps <= steps);
+  const p2 = STEP_DATA.find(p => p.steps > steps);
+
+  if (p1 && p2) { // Interpolate
+    const { steps: x1, kcal: y1 } = p1;
+    const { steps: x2, kcal: y2 } = p2;
+    return y1 + (steps - x1) * (y2 - y1) / (x2 - x1);
+  } else if (p1) { // Extrapolate above max
+    const { steps: x1, kcal: y1 } = p1;
+    const prevPoint = STEP_DATA[STEP_DATA.length - 2];
+    const { steps: x0, kcal: y0 } = prevPoint;
+    const slope = (y1 - y0) / (x1 - x0);
+    return y1 + (steps - x1) * slope;
+  } else { // Extrapolate below min (p2 is the first point)
+    const { steps: x2, kcal: y2 } = STEP_DATA[0];
+    return (steps / x2) * y2;
+  }
 };
 
 const SummaryCard: React.FC<{ title: string; value: string; color: string }> = ({ title, value, color }) => (
@@ -94,6 +125,8 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [progress] = useLocalStorage<ProgressLog[]>(`progress_${currentUser.id}`, []);
   const [goals, setGoals] = useLocalStorage<UserGoals>(`goals_${currentUser.id}`, { calories: 2000, protein: 150, carbs: 200, fat: 60, water: 2000 });
   const [waterLogs, setWaterLogs] = useLocalStorage<WaterLog[]>(`water_${currentUser.id}`, []);
+  const [stepsLog, setStepsLog] = useLocalStorage<StepLog[]>(`steps_${currentUser.id}`, []);
+  const [workoutSessions] = useLocalStorage<WorkoutSession[]>(`workoutSessions_${currentUser.id}`, []);
   const [isGoalsModalOpen, setIsGoalsModalOpen] = useState(false);
   const { theme } = useTheme();
 
@@ -102,7 +135,6 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   });
 
   React.useEffect(() => {
-    // Delay to ensure CSS variables are applied after theme switch
     const timer = setTimeout(() => {
         const style = getComputedStyle(document.documentElement);
         setChartColors({
@@ -119,14 +151,20 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const todayMeals: Meal[] = getTodayData(meals);
   const todayCardio: Cardio[] = getTodayData(cardio);
   const todayWater: WaterLog[] = getTodayData(waterLogs);
+  const todayStepsLog = getTodayData(stepsLog)[0];
+  const todayWorkoutSession = getTodayData(workoutSessions)[0];
 
   const caloriesIn = todayMeals.reduce((sum, meal) => sum + meal.calories, 0);
   const proteinIn = todayMeals.reduce((sum, meal) => sum + meal.protein, 0);
   const carbsIn = todayMeals.reduce((sum, meal) => sum + meal.carbs, 0);
   const fatIn = todayMeals.reduce((sum, meal) => sum + meal.fat, 0);
   const waterIn = todayWater.reduce((sum, log) => sum + log.amount, 0);
-
-  const caloriesOut = todayCardio.reduce((sum, act) => sum + act.calories, 0);
+  
+  const stepCalories = todayStepsLog ? calculateStepCalories(todayStepsLog.steps) : 0;
+  const workoutCalories = todayWorkoutSession?.totalCaloriesBurned || 0;
+  const cardioCalories = todayCardio.reduce((sum, act) => sum + act.calories, 0);
+  const caloriesOut = cardioCalories + stepCalories + workoutCalories;
+  
   const balance = caloriesIn - caloriesOut;
 
   const chartData = [...progress]
@@ -144,6 +182,24 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       amount,
     };
     setWaterLogs(prev => [...prev, newLog]);
+  };
+  
+  const handleStepsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const steps = parseNumber(e.target.value);
+
+    if (todayStepsLog) {
+        setStepsLog(prev => 
+            prev.map(log => log.id === todayStepsLog.id ? { ...log, steps } : log)
+        );
+    } else {
+        const newLog: StepLog = {
+            id: crypto.randomUUID(),
+            userId: currentUser.id,
+            date: new Date().toISOString(),
+            steps,
+        };
+        setStepsLog(prev => [...prev, newLog]);
+    }
   };
 
   return (
@@ -168,7 +224,7 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         </div>
       </Card>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="flex flex-col">
             <h3 className="text-lg text-text-secondary mb-2 text-center">Hidratação</h3>
             <div className="text-center my-auto">
@@ -179,6 +235,19 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 <Button variant="secondary" onClick={() => addWater(250)}>+1 Copo (250ml)</Button>
                 <Button variant="secondary" onClick={() => addWater(500)}>+1 Garrafa (500ml)</Button>
             </div>
+        </Card>
+        <Card>
+            <h3 className="text-lg text-text-secondary text-center mb-2">Passos do Dia</h3>
+            <Input 
+              type="number"
+              placeholder="Digite seus passos"
+              value={todayStepsLog?.steps ?? ''}
+              onChange={handleStepsChange}
+              onFocus={e => e.target.select()}
+            />
+            <p className="text-center text-secondary font-semibold mt-2">
+              Gasto estimado: {stepCalories.toFixed(0)} kcal
+            </p>
         </Card>
         <SummaryCard title="Calorias Gastas" value={caloriesOut.toLocaleString('pt-BR')} color="text-red-400" />
         <SummaryCard title="Balanço Calórico" value={balance.toLocaleString('pt-BR')} color={balance > 0 ? 'text-yellow-400' : 'text-blue-400'} />

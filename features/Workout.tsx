@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import type { User, Exercise, ExerciseTemplate } from '../types';
+import type { User, Exercise, ExerciseTemplate, WorkoutSession } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Modal, Textarea, Spinner } from '../components/ui';
 import { getTodayData } from '../services/dataService';
@@ -78,6 +78,7 @@ const ExerciseSelectionModal: React.FC<{
 export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [exercises, setExercises] = useLocalStorage<Exercise[]>(`exercises_${currentUser.id}`, []);
   const [exerciseTemplates, setExerciseTemplates] = useLocalStorage<ExerciseTemplate[]>(`exerciseTemplates_${currentUser.id}`, []);
+  const [workoutSessions, setWorkoutSessions] = useLocalStorage<WorkoutSession[]>(`workoutSessions_${currentUser.id}`, []);
   const [formData, setFormData] = useState<ExerciseFormData>(initialFormState);
   const [isImportModalOpen, setImportModalOpen] = useState(false);
   const [isSelectionModalOpen, setSelectionModalOpen] = useState(false);
@@ -88,6 +89,7 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const isMobile = useIsMobile();
 
   const exerciseTemplateNames = useMemo(() => exerciseTemplates.map(t => t.name), [exerciseTemplates]);
+  const todayWorkoutSession = getTodayData(workoutSessions)[0];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -192,6 +194,24 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
     setImportModalOpen(false);
   };
+  
+  const handleCaloriesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const calories = parseNumber(e.target.value);
+    
+    if (todayWorkoutSession) {
+        setWorkoutSessions(prev => 
+            prev.map(s => s.id === todayWorkoutSession.id ? { ...s, totalCaloriesBurned: calories } : s)
+        );
+    } else {
+        const newSession: WorkoutSession = {
+            id: crypto.randomUUID(),
+            userId: currentUser.id,
+            date: new Date().toISOString(),
+            totalCaloriesBurned: calories,
+        };
+        setWorkoutSessions(prev => [...prev, newSession]);
+    }
+  };
 
   const toggleParsedExerciseSelection = (tempId: number) => {
     setParsedExercises(prev => prev.map(ex => ex.tempId === tempId ? { ...ex, selected: !ex.selected } : ex));
@@ -252,6 +272,17 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
         <Card className="lg:col-span-2">
           <h2 className="text-xl font-bold mb-4">Treino de Hoje</h2>
+          <div className="mb-4">
+            <Input 
+                label="Gasto Calórico Total do Treino (kcal)" 
+                type="number"
+                step="any"
+                value={todayWorkoutSession?.totalCaloriesBurned ?? ''}
+                onChange={handleCaloriesChange}
+                onFocus={e => e.target.select()}
+                placeholder="Ex: 350"
+            />
+          </div>
           <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-left">
               <thead>

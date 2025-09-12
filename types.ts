@@ -126,3 +126,17 @@ export interface WaterLog {
   date: string; // ISO string
   amount: number; // in ml
 }
+
+export interface StepLog {
+  id: string;
+  userId: string;
+  date: string; // ISO string
+  steps: number;
+}
+
+export interface WorkoutSession {
+    id: string;
+    userId: string;
+    date: string; // ISO string
+    totalCaloriesBurned?: number;
+}
