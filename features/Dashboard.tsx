@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { User, Meal, Cardio, ProgressLog, UserGoals, WaterLog, StepLog, WorkoutSession } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
@@ -119,6 +119,18 @@ const MacroProgress: React.FC<{ label: string; unit: string; current: number; go
     );
 };
 
+const PencilIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" />
+    </svg>
+);
+
+const CheckIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
+);
+
 export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [meals] = useLocalStorage<Meal[]>(`meals_${currentUser.id}`, []);
   const [cardio] = useLocalStorage<Cardio[]>(`cardio_${currentUser.id}`, []);
@@ -128,7 +140,30 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [stepsLog, setStepsLog] = useLocalStorage<StepLog[]>(`steps_${currentUser.id}`, []);
   const [workoutSessions] = useLocalStorage<WorkoutSession[]>(`workoutSessions_${currentUser.id}`, []);
   const [isGoalsModalOpen, setIsGoalsModalOpen] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [isEditingSteps, setIsEditingSteps] = useState(true);
+  const [stepInput, setStepInput] = useState('');
   const { theme } = useTheme();
+
+  const todayStepsLog = getTodayData(stepsLog)[0];
+
+  useEffect(() => {
+    if (todayStepsLog) {
+        setIsEditingSteps(false);
+        setStepInput(String(todayStepsLog.steps));
+    } else {
+        setIsEditingSteps(true);
+        setStepInput('');
+    }
+  }, [todayStepsLog]);
+
+  useEffect(() => {
+    if (feedback) {
+        const timer = setTimeout(() => setFeedback(null), 3000);
+        return () => clearTimeout(timer);
+    }
+  }, [feedback]);
+
 
   const [chartColors, setChartColors] = React.useState({
     grid: '', text: '', tooltipBg: '', tooltipBorder: '', primary: ''
@@ -151,7 +186,6 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const todayMeals: Meal[] = getTodayData(meals);
   const todayCardio: Cardio[] = getTodayData(cardio);
   const todayWater: WaterLog[] = getTodayData(waterLogs);
-  const todayStepsLog = getTodayData(stepsLog)[0];
   const todayWorkoutSession = getTodayData(workoutSessions)[0];
 
   const caloriesIn = todayMeals.reduce((sum, meal) => sum + meal.calories, 0);
@@ -184,9 +218,8 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     setWaterLogs(prev => [...prev, newLog]);
   };
   
-  const handleStepsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const steps = parseNumber(e.target.value);
-
+ const handleSaveSteps = () => {
+    const steps = parseNumber(stepInput);
     if (todayStepsLog) {
         setStepsLog(prev => 
             prev.map(log => log.id === todayStepsLog.id ? { ...log, steps } : log)
@@ -200,10 +233,17 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         };
         setStepsLog(prev => [...prev, newLog]);
     }
-  };
+    setFeedback("Passos registrados com sucesso!");
+    setIsEditingSteps(false);
+ };
 
   return (
     <div className="space-y-6">
+      {feedback && (
+        <div className="fixed bottom-5 right-5 z-50 p-4 rounded-lg shadow-lg text-white bg-primary">
+          {feedback}
+        </div>
+      )}
        <div className="flex justify-between items-center">
         <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Dashboard</h1>
         <button onClick={() => setIsGoalsModalOpen(true)} className="text-text-secondary hover:text-primary transition-colors" aria-label="Definir Metas">
@@ -238,13 +278,29 @@ export const Dashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         </Card>
         <Card>
             <h3 className="text-lg text-text-secondary text-center mb-2">Passos do Dia</h3>
-            <Input 
-              type="number"
-              placeholder="Digite seus passos"
-              value={todayStepsLog?.steps ?? ''}
-              onChange={handleStepsChange}
-              onFocus={e => e.target.select()}
-            />
+            {isEditingSteps ? (
+                 <div className="flex items-center gap-2">
+                    <Input 
+                        type="number"
+                        placeholder="Digite seus passos"
+                        value={stepInput}
+                        onChange={e => setStepInput(e.target.value)}
+                        onFocus={e => e.target.select()}
+                        aria-label="Passos do dia"
+                    />
+                    <Button onClick={handleSaveSteps} aria-label="Salvar passos">
+                        <CheckIcon className="w-5 h-5" />
+                    </Button>
+                 </div>
+            ) : (
+                <div 
+                    onClick={() => setIsEditingSteps(true)}
+                    className="flex justify-between items-center p-2 rounded-md bg-background cursor-pointer hover:bg-gray-700"
+                >
+                    <p className="text-lg font-semibold">{Number(stepInput).toLocaleString('pt-BR')} passos</p>
+                    <PencilIcon className="w-5 h-5 text-text-secondary" />
+                </div>
+            )}
             <p className="text-center text-secondary font-semibold mt-2">
               Gasto estimado: {stepCalories.toFixed(0)} kcal
             </p>

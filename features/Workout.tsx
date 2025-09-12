@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Exercise, ExerciseTemplate, WorkoutSession } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Modal, Textarea, Spinner } from '../components/ui';
@@ -33,6 +33,18 @@ const TrashIcon = (props: React.SVGProps<SVGSVGElement>) => (
 const ListIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+);
+
+const PencilIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" />
+    </svg>
+);
+
+const CheckIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
     </svg>
 );
 
@@ -86,10 +98,31 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [parsedExercises, setParsedExercises] = useState<ParsedExercise[]>([]);
   const [isParsing, setIsParsing] = useState(false);
   const [parsingAttempted, setParsingAttempted] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [isEditingCalories, setIsEditingCalories] = useState(true);
+  const [calorieInput, setCalorieInput] = useState('');
   const isMobile = useIsMobile();
 
   const exerciseTemplateNames = useMemo(() => exerciseTemplates.map(t => t.name), [exerciseTemplates]);
   const todayWorkoutSession = getTodayData(workoutSessions)[0];
+
+  useEffect(() => {
+    if (todayWorkoutSession) {
+        setIsEditingCalories(false);
+        setCalorieInput(String(todayWorkoutSession.totalCaloriesBurned || ''));
+    } else {
+        setIsEditingCalories(true);
+        setCalorieInput('');
+    }
+  }, [todayWorkoutSession]);
+
+  useEffect(() => {
+    if (feedback) {
+        const timer = setTimeout(() => setFeedback(null), 3000);
+        return () => clearTimeout(timer);
+    }
+  }, [feedback]);
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -195,8 +228,8 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     setImportModalOpen(false);
   };
   
-  const handleCaloriesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const calories = parseNumber(e.target.value);
+ const handleSaveCalories = () => {
+    const calories = parseNumber(calorieInput);
     
     if (todayWorkoutSession) {
         setWorkoutSessions(prev => 
@@ -211,7 +244,10 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         };
         setWorkoutSessions(prev => [...prev, newSession]);
     }
+    setFeedback("Calorias do treino salvas com sucesso!");
+    setIsEditingCalories(false);
   };
+
 
   const toggleParsedExerciseSelection = (tempId: number) => {
     setParsedExercises(prev => prev.map(ex => ex.tempId === tempId ? { ...ex, selected: !ex.selected } : ex));
@@ -227,6 +263,11 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 
   return (
     <div className="space-y-6">
+       {feedback && (
+        <div className="fixed bottom-5 right-5 z-50 p-4 rounded-lg shadow-lg text-white bg-primary">
+          {feedback}
+        </div>
+      )}
        <div className="flex justify-between items-center">
         <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Treino</h1>
         <Button onClick={openImportModal}>
@@ -273,15 +314,36 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         <Card className="lg:col-span-2">
           <h2 className="text-xl font-bold mb-4">Treino de Hoje</h2>
           <div className="mb-4">
-            <Input 
-                label="Gasto Calórico Total do Treino (kcal)" 
-                type="number"
-                step="any"
-                value={todayWorkoutSession?.totalCaloriesBurned ?? ''}
-                onChange={handleCaloriesChange}
-                onFocus={e => e.target.select()}
-                placeholder="Ex: 350"
-            />
+            {isEditingCalories ? (
+                <div>
+                    <label htmlFor="workout-calories" className="block text-sm font-medium text-text-secondary mb-1">Gasto Calórico Total do Treino (kcal)</label>
+                    <div className="flex items-center gap-2">
+                        <Input 
+                            id="workout-calories"
+                            type="number"
+                            step="any"
+                            value={calorieInput}
+                            onChange={e => setCalorieInput(e.target.value)}
+                            onFocus={e => e.target.select()}
+                            placeholder="Ex: 350"
+                        />
+                         <Button onClick={handleSaveCalories} aria-label="Salvar calorias">
+                            <CheckIcon className="w-5 h-5" />
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                 <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Gasto Calórico Total do Treino (kcal)</label>
+                     <div 
+                        onClick={() => setIsEditingCalories(true)}
+                        className="flex justify-between items-center p-2 rounded-md bg-background cursor-pointer hover:bg-gray-700"
+                    >
+                        <p className="text-lg font-semibold">{Number(calorieInput).toLocaleString('pt-BR')} kcal</p>
+                        <PencilIcon className="w-5 h-5 text-text-secondary" />
+                    </div>
+                 </div>
+            )}
           </div>
           <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-left">
