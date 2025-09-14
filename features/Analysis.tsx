@@ -47,7 +47,7 @@ const useChartColors = () => {
 const SubTabButton: React.FC<{ label: string; isActive: boolean; onClick: () => void; }> = ({ label, isActive, onClick }) => (
     <button
       onClick={onClick}
-      className={`whitespace-nowrap pb-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${isActive ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-gray-500'}`}
+      className={`whitespace-nowrap pb-2 pt-3 px-4 border-b-4 font-semibold text-base transition-colors duration-200 ${isActive ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
     >
       {label}
     </button>
@@ -337,14 +337,14 @@ type ProgressSubTab = 'Evolução Corporal' | 'Minhas Medidas' | 'Performance do
 const progressSubTabs: ProgressSubTab[] = ['Evolução Corporal', 'Minhas Medidas', 'Performance do Treino', 'Registrar Medidas'];
 
 const ProgressView: React.FC<{ currentUser: User }> = ({ currentUser }) => {
-    const [activeSubTab, setActiveSubTab] = useState<ProgressSubTab>('Evolução Corporal');
+    const [activeSubTab, setActiveSubTab] = useState<ProgressSubTab>('Performance do Treino');
     const [progress, setProgress] = useLocalStorage<ProgressLog[]>(`progress_${currentUser.id}`, []);
     const [exercises] = useLocalStorage<Exercise[]>(`exercises_${currentUser.id}`, []);
 
     return (
         <div className="space-y-4">
             <div className="border-b border-border">
-                <nav className="-mb-px flex space-x-6 overflow-x-auto">
+                <nav className="-mb-px flex justify-center space-x-2 sm:space-x-4 overflow-x-auto">
                     {progressSubTabs.map(tab => (
                         <SubTabButton key={tab} label={tab} isActive={activeSubTab === tab} onClick={() => setActiveSubTab(tab)} />
                     ))}
@@ -1087,12 +1087,12 @@ export const Analysis: React.FC<{ currentUser: User, allUsers: User[], createUse
     <div className="space-y-6">
       <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Análise e Mais</h1>
       <div className="border-b border-border">
-        <nav className="-mb-px flex space-x-6 overflow-x-auto">
+        <nav className="-mb-px flex space-x-2 sm:space-x-4 overflow-x-auto">
           {TABS.map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === tab ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-gray-500'}`}
+              className={`whitespace-nowrap pb-2 pt-3 px-4 border-b-4 font-semibold text-base transition-colors duration-200 ${activeTab === tab ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
             >
               {tab}
             </button>
