@@ -481,6 +481,7 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
     const [reportData, setReportData] = useState<ReportData | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const reportRef = useRef<HTMLDivElement>(null);
 
     const [meals] = useLocalStorage<Meal[]>(`meals_${currentUser.id}`, []);
     const [exercises] = useLocalStorage<Exercise[]>(`exercises_${currentUser.id}`, []);
@@ -607,6 +608,90 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
         }
     };
 
+    const handleExportHtml = () => {
+        if (!reportRef.current || !reportData) return;
+
+        const tailwindStyles = document.getElementById('__tailwind')?.textContent || '';
+        const baseStyles = `
+            :root {
+                --color-primary: 20 184 166;
+                --color-primary-focus: 13 148 136;
+                --color-secondary: 99 102 241;
+                --color-secondary-focus: 79 70 229;
+                --color-background: 241 245 249;
+                --color-surface: 255 255 255;
+                --color-text-primary: 17 24 39;
+                --color-text-secondary: 107 114 128;
+                --color-border: 209 213 219;
+                --color-danger: 220 38 38;
+                --color-danger-focus: 185 28 28;
+            }
+            .dark {
+                --color-primary: 20 184 166;
+                --color-primary-focus: 13 148 136;
+                --color-secondary: 99 102 241;
+                --color-secondary-focus: 79 70 229;
+                --color-background: 17 24 39;
+                --color-surface: 31 41 55;
+                --color-text-primary: 249 250 251;
+                --color-text-secondary: 156 163 175;
+                --color-border: 55 65 81;
+                --color-danger: 220 38 38;
+                --color-danger-focus: 185 28 28;
+            }
+            body {
+                background-color: rgb(var(--color-background));
+                color: rgb(var(--color-text-primary));
+                font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+                padding: 2rem;
+            }
+            @media print {
+                body {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+            }
+        `;
+
+        const reportHtml = reportRef.current.innerHTML;
+        const themeClass = document.documentElement.className;
+        const fullHtml = `
+            <!DOCTYPE html>
+            <html lang="pt-BR" class="${themeClass}">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Relatório FitTrack</title>
+                <style>
+                    ${baseStyles}
+                    ${tailwindStyles}
+                </style>
+            </head>
+            <body>
+                ${reportHtml}
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob([fullHtml.trim()], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+
+        const formatDateForFilename = (dateString: string) => {
+            const [year, month, day] = dateString.split('-');
+            return `${day}-${month}-${year}`;
+        }
+        const formattedStartDate = formatDateForFilename(reportData.startDate);
+        const formattedEndDate = formatDateForFilename(reportData.endDate);
+        
+        link.download = `Relatorio_FitTrack_${formattedStartDate}_a_${formattedEndDate}.html`;
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div className="space-y-6">
             <Card>
@@ -624,10 +709,28 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
                         {isLoading ? <Spinner /> : 'Gerar Relatório'}
                     </Button>
                 </div>
-                {error && <p className="text-center mt-4 text-red-500 text-sm">{error}</p>}
+                {error && !isLoading && <p className="text-center mt-4 text-red-500 text-sm">{error}</p>}
             </Card>
 
-            {reportData && <ReportView data={reportData} />}
+            {isLoading && (
+                <div className="flex justify-center p-8"><Spinner /></div>
+            )}
+
+            {reportData && !isLoading && (
+                <div className="space-y-4 mt-6">
+                    <div className="flex justify-end">
+                        <Button onClick={handleExportHtml}>
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                           </svg>
+                           Exportar para HTML
+                        </Button>
+                    </div>
+                    <div ref={reportRef}>
+                        <ReportView data={reportData} />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
