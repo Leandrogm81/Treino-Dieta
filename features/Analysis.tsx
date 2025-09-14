@@ -4,7 +4,6 @@ import type { User, ProgressLog, Exercise, Meal, Cardio, AllUserData, BackupData
 import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Select, Modal, Spinner } from '../components/ui';
 import { checkAchievements, exportToCsv, hasTodayLog, exportAllDataToJson, getTodayISO } from '../services/dataService';
-import { categorizeExercises } from '../services/geminiService';
 import { useTheme } from '../hooks/useTheme';
 
 const parseNumber = (value: string | number): number => {
@@ -568,6 +567,7 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
         
         // --- AI EXERCISE ANALYSIS ---
         const uniqueExNames = [...new Set(filteredExercises.map(e => e.name))];
+        const { categorizeExercises } = await import('../services/geminiService');
         const exCategories = await categorizeExercises(uniqueExNames);
         const trainingByGroup: Record<string, { exercises: Set<string>, maxLoad: number, totalVolume: number, count: number }> = {};
         for(const ex of filteredExercises) {
