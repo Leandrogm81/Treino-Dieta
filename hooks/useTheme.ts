@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 type Theme = 'light' | 'dark';
@@ -27,8 +26,13 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
   };
 
-  // FIX: Replace JSX with React.createElement to be valid in a .ts file
-  return React.createElement(ThemeContext.Provider, { value: { theme, toggleTheme } }, children);
+  // FIX: Replaced JSX with React.createElement to be compatible with .ts files.
+  // The original JSX was causing parsing errors because this file does not have a .tsx extension.
+  return React.createElement(
+    ThemeContext.Provider,
+    { value: { theme, toggleTheme } },
+    children
+  );
 };
 
 export const useTheme = (): ThemeContextType => {
