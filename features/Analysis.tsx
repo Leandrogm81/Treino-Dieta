@@ -5,6 +5,7 @@ import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Select, Modal, Spinner } from '../components/ui';
 import { checkAchievements, exportToCsv, hasTodayLog, exportAllDataToJson, getTodayISO } from '../services/dataService';
 import { useTheme } from '../hooks/useTheme';
+import { categorizeExercises } from '../services/geminiService';
 
 const parseNumber = (value: string | number): number => {
     return parseFloat(String(value).replace(',', '.')) || 0;
@@ -517,77 +518,81 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
         setIsLoading(true);
         setReportData(null);
 
-        const start = new Date(startDate);
-        start.setHours(0,0,0,0);
-        const end = new Date(endDate);
-        end.setHours(23,59,59,999);
-        
-        // --- DATA FILTERING ---
-        const isDateInRange = (iso: string) => { const d = new Date(iso); return d >= start && d <= end; };
-        const filteredProgress = progress.filter(p => isDateInRange(p.date)).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        const filteredMeals = meals.filter(m => isDateInRange(m.date));
-        const filteredExercises = exercises.filter(e => isDateInRange(e.date));
-        const filteredCardio = cardio.filter(c => isDateInRange(c.date));
+        try {
+            const start = new Date(startDate);
+            start.setHours(0,0,0,0);
+            const end = new Date(endDate);
+            end.setHours(23,59,59,999);
+            
+            // --- DATA FILTERING ---
+            const isDateInRange = (iso: string) => { const d = new Date(iso); return d >= start && d <= end; };
+            const filteredProgress = progress.filter(p => isDateInRange(p.date)).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            const filteredMeals = meals.filter(m => isDateInRange(m.date));
+            const filteredExercises = exercises.filter(e => isDateInRange(e.date));
+            const filteredCardio = cardio.filter(c => isDateInRange(c.date));
 
-        if (filteredProgress.length === 0 && filteredMeals.length === 0 && filteredExercises.length === 0 && filteredCardio.length === 0) {
-            setError('Nenhum dado encontrado para o período selecionado.');
+            if (filteredProgress.length === 0 && filteredMeals.length === 0 && filteredExercises.length === 0 && filteredCardio.length === 0) {
+                setError('Nenhum dado encontrado para o período selecionado.');
+                return;
+            }
+
+            // --- CALCULATIONS ---
+            const dayCount = Math.round((end.getTime() - start.getTime()) / (1000 * 3600 * 24));
+            
+            const firstWeight = filteredProgress.find(p => p.weight > 0)?.weight || 0;
+            const lastWeight = [...filteredProgress].reverse().find(p => p.weight > 0)?.weight || firstWeight;
+            const weightChange = (firstWeight > 0 && lastWeight > 0) ? (lastWeight - firstWeight) : 0;
+            
+            const validMuscleMassLogs = filteredProgress.filter(p => p.muscleMass && p.muscleMass > 0);
+            const avgMuscleMass = validMuscleMassLogs.length > 0 ? validMuscleMassLogs.reduce((sum, p) => sum + p.muscleMass!, 0) / validMuscleMassLogs.length : 0;
+            
+            const totalCardioMinutes = filteredCardio.reduce((sum, c) => sum + c.duration, 0);
+
+            const mealDays = new Set(filteredMeals.map(m => new Date(m.date).toDateString())).size || 1;
+            const totalCalories = filteredMeals.reduce((sum, m) => sum + m.calories, 0);
+            const avgCalories = totalCalories / mealDays;
+
+            const totalProtein = filteredMeals.reduce((sum, m) => sum + m.protein, 0);
+            const totalCarbs = filteredMeals.reduce((sum, m) => sum + m.carbs, 0);
+            const totalFat = filteredMeals.reduce((sum, m) => sum + m.fat, 0);
+            const avgProtein = totalProtein / mealDays;
+            const avgCarbs = totalCarbs / mealDays;
+            const avgFat = totalFat / mealDays;
+            const calP = avgProtein * 4, calC = avgCarbs * 4, calF = avgFat * 9;
+            const totalMacroCal = calP + calC + calF;
+            const macros = {
+                protein: { g: avgProtein, kcal: calP, pct: totalMacroCal > 0 ? (calP / totalMacroCal) * 100 : 0 },
+                carbs: { g: avgCarbs, kcal: calC, pct: totalMacroCal > 0 ? (calC / totalMacroCal) * 100 : 0 },
+                fat: { g: avgFat, kcal: calF, pct: totalMacroCal > 0 ? (calF / totalMacroCal) * 100 : 0 },
+            };
+            
+            // --- AI EXERCISE ANALYSIS ---
+            const uniqueExNames = [...new Set(filteredExercises.map(e => e.name))];
+            const exCategories = await categorizeExercises(uniqueExNames);
+            const trainingByGroup: Record<string, { exercises: Set<string>, maxLoad: number, totalVolume: number, count: number }> = {};
+            for(const ex of filteredExercises) {
+                const group = exCategories[ex.name] || 'Outro';
+                if (!trainingByGroup[group]) trainingByGroup[group] = { exercises: new Set(), maxLoad: 0, totalVolume: 0, count: 0 };
+                const entry = trainingByGroup[group];
+                entry.exercises.add(ex.name);
+                if (ex.load > entry.maxLoad) entry.maxLoad = ex.load;
+                entry.totalVolume += ex.sets * ex.reps * ex.load;
+                entry.count++;
+            }
+            const training = Object.entries(trainingByGroup).map(([group, data]) => ({
+                group,
+                exercises: [...data.exercises].join(', '),
+                maxLoad: data.maxLoad,
+                avgVolume: data.count > 0 ? data.totalVolume / data.count : 0
+            })).sort((a,b) => a.group.localeCompare(b.group));
+
+            setReportData({ startDate, endDate, dayCount, weightChange, avgCalories, avgMuscleMass, totalCardioMinutes, macros, training, progress: filteredProgress });
+        } catch (err) {
+            console.error("Erro ao gerar relatório:", err);
+            setError("Ocorreu um erro ao gerar o relatório. Tente novamente mais tarde.");
+        } finally {
             setIsLoading(false);
-            return;
         }
-
-        // --- CALCULATIONS ---
-        const dayCount = Math.round((end.getTime() - start.getTime()) / (1000 * 3600 * 24));
-        
-        const firstWeight = filteredProgress.find(p => p.weight > 0)?.weight || 0;
-        const lastWeight = [...filteredProgress].reverse().find(p => p.weight > 0)?.weight || firstWeight;
-        const weightChange = (firstWeight > 0 && lastWeight > 0) ? (lastWeight - firstWeight) : 0;
-        
-        const validMuscleMassLogs = filteredProgress.filter(p => p.muscleMass && p.muscleMass > 0);
-        const avgMuscleMass = validMuscleMassLogs.length > 0 ? validMuscleMassLogs.reduce((sum, p) => sum + p.muscleMass!, 0) / validMuscleMassLogs.length : 0;
-        
-        const totalCardioMinutes = filteredCardio.reduce((sum, c) => sum + c.duration, 0);
-
-        const mealDays = new Set(filteredMeals.map(m => new Date(m.date).toDateString())).size || 1;
-        const totalCalories = filteredMeals.reduce((sum, m) => sum + m.calories, 0);
-        const avgCalories = totalCalories / mealDays;
-
-        const totalProtein = filteredMeals.reduce((sum, m) => sum + m.protein, 0);
-        const totalCarbs = filteredMeals.reduce((sum, m) => sum + m.carbs, 0);
-        const totalFat = filteredMeals.reduce((sum, m) => sum + m.fat, 0);
-        const avgProtein = totalProtein / mealDays;
-        const avgCarbs = totalCarbs / mealDays;
-        const avgFat = totalFat / mealDays;
-        const calP = avgProtein * 4, calC = avgCarbs * 4, calF = avgFat * 9;
-        const totalMacroCal = calP + calC + calF;
-        const macros = {
-            protein: { g: avgProtein, kcal: calP, pct: totalMacroCal > 0 ? (calP / totalMacroCal) * 100 : 0 },
-            carbs: { g: avgCarbs, kcal: calC, pct: totalMacroCal > 0 ? (calC / totalMacroCal) * 100 : 0 },
-            fat: { g: avgFat, kcal: calF, pct: totalMacroCal > 0 ? (calF / totalMacroCal) * 100 : 0 },
-        };
-        
-        // --- AI EXERCISE ANALYSIS ---
-        const uniqueExNames = [...new Set(filteredExercises.map(e => e.name))];
-        const { categorizeExercises } = await import('../services/geminiService');
-        const exCategories = await categorizeExercises(uniqueExNames);
-        const trainingByGroup: Record<string, { exercises: Set<string>, maxLoad: number, totalVolume: number, count: number }> = {};
-        for(const ex of filteredExercises) {
-            const group = exCategories[ex.name] || 'Outro';
-            if (!trainingByGroup[group]) trainingByGroup[group] = { exercises: new Set(), maxLoad: 0, totalVolume: 0, count: 0 };
-            const entry = trainingByGroup[group];
-            entry.exercises.add(ex.name);
-            if (ex.load > entry.maxLoad) entry.maxLoad = ex.load;
-            entry.totalVolume += ex.sets * ex.reps * ex.load;
-            entry.count++;
-        }
-        const training = Object.entries(trainingByGroup).map(([group, data]) => ({
-            group,
-            exercises: [...data.exercises].join(', '),
-            maxLoad: data.maxLoad,
-            avgVolume: data.count > 0 ? data.totalVolume / data.count : 0
-        })).sort((a,b) => a.group.localeCompare(b.group));
-
-        setReportData({ startDate, endDate, dayCount, weightChange, avgCalories, avgMuscleMass, totalCardioMinutes, macros, training, progress: filteredProgress });
-        setIsLoading(false);
     };
 
     return (
