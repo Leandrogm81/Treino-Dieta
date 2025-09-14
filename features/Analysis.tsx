@@ -5,7 +5,6 @@ import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Select, Modal, Spinner } from '../components/ui';
 import { checkAchievements, exportToCsv, hasTodayLog, exportAllDataToJson, getTodayISO } from '../services/dataService';
 import { useTheme } from '../hooks/useTheme';
-import { categorizeExercises } from '../services/geminiService';
 
 const parseNumber = (value: string | number): number => {
     return parseFloat(String(value).replace(',', '.')) || 0;
@@ -439,14 +438,14 @@ const ReportView: React.FC<{ data: ReportData }> = ({ data }) => {
                 <h2 className="text-xl font-bold text-text-primary border-l-4 border-primary pl-3 mb-4">Análise de Exercícios</h2>
                 <div className="overflow-x-auto"><table className="min-w-full">
                     <thead className="bg-background"><tr className="text-left text-sm font-semibold text-text-secondary">
-                        <th className="py-2 px-4">Grupo Muscular</th><th className="py-2 px-4">Exercícios</th>
-                        <th className="py-2 px-4">Carga Máxima (kg)</th><th className="py-2 px-4">Volume Médio (kg)</th>
+                        <th className="py-2 px-4">Exercício</th>
+                        <th className="py-2 px-4">Carga Máxima (kg)</th><th className="py-2 px-4">Volume Médio por Sessão (kg)</th>
                     </tr></thead>
                     <tbody>{data.training.map(t => <tr key={t.group} className="border-b border-border">
-                        <td className="py-2 px-4 font-semibold">{t.group}</td><td className="py-2 px-4 text-sm">{t.exercises}</td>
+                        <td className="py-2 px-4 font-semibold">{t.group}</td>
                         <td className="py-2 px-4">{t.maxLoad.toFixed(1)}</td><td className="py-2 px-4">{t.avgVolume.toFixed(0)}</td>
                     </tr>)}
-                    {data.training.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-text-secondary">Nenhum treino de musculação registrado no período.</td></tr>}
+                    {data.training.length === 0 && <tr><td colSpan={3} className="p-4 text-center text-text-secondary">Nenhum treino de musculação registrado no período.</td></tr>}
                     </tbody>
                 </table></div>
             </section>
@@ -509,7 +508,7 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
         handleSetPeriod('weekly');
     }, []);
 
-    const handleGenerateReport = async () => {
+    const handleGenerateReport = () => {
         if (!startDate || !endDate) {
             setError('Por favor, selecione um período válido.');
             return;
@@ -533,11 +532,12 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
 
             if (filteredProgress.length === 0 && filteredMeals.length === 0 && filteredExercises.length === 0 && filteredCardio.length === 0) {
                 setError('Nenhum dado encontrado para o período selecionado.');
+                setIsLoading(false);
                 return;
             }
 
             // --- CALCULATIONS ---
-            const dayCount = Math.round((end.getTime() - start.getTime()) / (1000 * 3600 * 24));
+            const dayCount = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 3600 * 24)));
             
             const firstWeight = filteredProgress.find(p => p.weight > 0)?.weight || 0;
             const lastWeight = [...filteredProgress].reverse().find(p => p.weight > 0)?.weight || firstWeight;
@@ -566,25 +566,37 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
                 fat: { g: avgFat, kcal: calF, pct: totalMacroCal > 0 ? (calF / totalMacroCal) * 100 : 0 },
             };
             
-            // --- AI EXERCISE ANALYSIS ---
-            const uniqueExNames = [...new Set(filteredExercises.map(e => e.name))];
-            const exCategories = await categorizeExercises(uniqueExNames);
-            const trainingByGroup: Record<string, { exercises: Set<string>, maxLoad: number, totalVolume: number, count: number }> = {};
-            for(const ex of filteredExercises) {
-                const group = exCategories[ex.name] || 'Outro';
-                if (!trainingByGroup[group]) trainingByGroup[group] = { exercises: new Set(), maxLoad: 0, totalVolume: 0, count: 0 };
-                const entry = trainingByGroup[group];
-                entry.exercises.add(ex.name);
-                if (ex.load > entry.maxLoad) entry.maxLoad = ex.load;
-                entry.totalVolume += ex.sets * ex.reps * ex.load;
-                entry.count++;
+            // --- EXERCISE ANALYSIS (NO AI) ---
+            const exercisesByName: Record<string, Exercise[]> = {};
+            for (const ex of filteredExercises) {
+                if (!exercisesByName[ex.name]) {
+                    exercisesByName[ex.name] = [];
+                }
+                exercisesByName[ex.name].push(ex);
             }
-            const training = Object.entries(trainingByGroup).map(([group, data]) => ({
-                group,
-                exercises: [...data.exercises].join(', '),
-                maxLoad: data.maxLoad,
-                avgVolume: data.count > 0 ? data.totalVolume / data.count : 0
-            })).sort((a,b) => a.group.localeCompare(b.group));
+
+            const training = Object.entries(exercisesByName).map(([exerciseName, exLogs]) => {
+                const maxLoad = Math.max(0, ...exLogs.map(e => e.load));
+                
+                const volumeBySession: Record<string, number> = {};
+                for (const log of exLogs) {
+                    const sessionDate = new Date(log.date).toDateString();
+                    const currentVolume = volumeBySession[sessionDate] || 0;
+                    volumeBySession[sessionDate] = currentVolume + (log.sets * log.reps * log.load);
+                }
+
+                const sessionVolumes = Object.values(volumeBySession);
+                const avgVolume = sessionVolumes.length > 0
+                    ? sessionVolumes.reduce((sum, v) => sum + v, 0) / sessionVolumes.length
+                    : 0;
+
+                return {
+                    group: exerciseName,
+                    exercises: exerciseName, // For data structure
+                    maxLoad: maxLoad,
+                    avgVolume: avgVolume
+                };
+            }).sort((a,b) => a.group.localeCompare(b.group));
 
             setReportData({ startDate, endDate, dayCount, weightChange, avgCalories, avgMuscleMass, totalCardioMinutes, macros, training, progress: filteredProgress });
         } catch (err) {
