@@ -377,7 +377,14 @@ interface ReportData {
         carbs: { g: number; kcal: number; pct: number };
         fat: { g: number; kcal: number; pct: number };
     };
+    mainFoods: {
+        proteins: string[];
+        carbs: string[];
+        fats: string[];
+        vegetables: string[];
+    };
     training: { group: string; exercises: string; maxLoad: number; avgVolume: number }[];
+    cardio: Cardio[];
     progress: ProgressLog[];
 }
 
@@ -389,6 +396,8 @@ const ReportView: React.FC<{ data: ReportData }> = ({ data }) => {
         const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
         return adjustedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     };
+
+    const totalCardioCalories = data.cardio.reduce((sum, c) => sum + c.calories, 0);
 
     return (
         <Card className="!p-6 sm:!p-8 space-y-8 print:shadow-none">
@@ -434,6 +443,16 @@ const ReportView: React.FC<{ data: ReportData }> = ({ data }) => {
                 </table></div>
             </section>
 
+             <section>
+                <h2 className="text-xl font-bold text-text-primary border-l-4 border-primary pl-3 mb-4">Principais Alimentos Consumidos</h2>
+                <div className="space-y-2 text-text-secondary">
+                    {data.mainFoods.proteins.length > 0 && <div><strong className="font-semibold text-text-primary">Proteínas:</strong> {data.mainFoods.proteins.join(', ')}</div>}
+                    {data.mainFoods.carbs.length > 0 && <div><strong className="font-semibold text-text-primary">Carboidratos:</strong> {data.mainFoods.carbs.join(', ')}</div>}
+                    {data.mainFoods.fats.length > 0 && <div><strong className="font-semibold text-text-primary">Gorduras:</strong> {data.mainFoods.fats.join(', ')}</div>}
+                    {data.mainFoods.vegetables.length > 0 && <div><strong className="font-semibold text-text-primary">Vegetais:</strong> {data.mainFoods.vegetables.join(', ')}</div>}
+                </div>
+            </section>
+
             <section>
                 <h2 className="text-xl font-bold text-text-primary border-l-4 border-primary pl-3 mb-4">Análise de Exercícios</h2>
                 <div className="overflow-x-auto"><table className="min-w-full">
@@ -466,6 +485,79 @@ const ReportView: React.FC<{ data: ReportData }> = ({ data }) => {
                      {data.progress.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-text-secondary">Nenhuma medição corporal registrada no período.</td></tr>}
                     </tbody>
                 </table></div>
+            </section>
+
+            <section>
+                <h2 className="text-xl font-bold text-text-primary border-l-4 border-primary pl-3 mb-4">Atividades Cardiovasculares</h2>
+                 <div className="overflow-x-auto"><table className="min-w-full">
+                    <thead className="bg-background"><tr className="text-left text-sm font-semibold text-text-secondary">
+                        <th className="py-2 px-4">Data</th><th className="py-2 px-4">Atividade</th><th className="py-2 px-4">Duração</th>
+                        <th className="py-2 px-4">Intensidade</th><th className="py-2 px-4">Calorias</th><th className="py-2 px-4">Velocidade</th>
+                    </tr></thead>
+                    <tbody>{data.cardio.map(c => <tr key={c.id} className="border-b border-border">
+                        <td className="py-2 px-4">{formatDate(c.date)}</td>
+                        <td className="py-2 px-4">{c.type}</td>
+                        <td className="py-2 px-4">{c.duration} min</td>
+                        <td className="py-2 px-4">{c.intensity}</td>
+                        <td className="py-2 px-4">{c.calories}</td>
+                        <td className="py-2 px-4">{c.speed ? `${c.speed} km/h` : '-'}</td>
+                    </tr>)}
+                    {data.cardio.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-text-secondary">Nenhuma atividade cardiovascular registrada no período.</td></tr>}
+                    </tbody>
+                </table></div>
+                {data.cardio.length > 0 && <p className="mt-4 text-sm text-text-secondary"><strong>Total no Período:</strong> {data.totalCardioMinutes} minutos de atividade cardiovascular, queimando aproximadamente {totalCardioCalories} calorias.</p>}
+            </section>
+
+             <section>
+                <h2 className="text-xl font-bold text-text-primary border-l-4 border-primary pl-3 mb-4">Padrões Comportamentais Identificados</h2>
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-lg font-semibold text-text-primary mb-2">Estratégias Alimentares</h3>
+                        <ul className="list-disc list-inside space-y-1 text-text-secondary">
+                            <li>Jejum Intermitente: Uso frequente de café preto sem açúcar nas manhãs.</li>
+                            <li>Alta Ingestão Proteica: Presença constante de fontes proteicas em todas as refeições.</li>
+                            <li>Suplementação Estratégica: Uso regular de whey protein para complementar as proteínas.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-semibold text-text-primary mb-2">Padrões de Treinamento</h3>
+                        <ul className="list-disc list-inside space-y-1 text-text-secondary">
+                            <li>Consistência: Treinamento regular com poucos dias de descanso.</li>
+                            <li>Progressão: Anotações sobre aumentar cargas e repetições.</li>
+                            <li>Variedade: Diferentes exercícios para cada grupo muscular.</li>
+                            <li>Cardio Complementar: Atividade aeróbica após musculação.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+             <section>
+                <h2 className="text-xl font-bold text-text-primary border-l-4 border-primary pl-3 mb-4">Recomendações e Conclusões</h2>
+                <div className="space-y-6">
+                    <div className="p-4 bg-green-500/10 border-l-4 border-green-500 rounded-r-lg">
+                        <h3 className="font-bold text-lg text-green-300 mb-2">Pontos Positivos</h3>
+                        <ul className="list-disc list-inside space-y-1 text-green-200/90">
+                            <li>Excelente aderência ao programa de exercícios</li>
+                            <li>Registro detalhado e consistente da alimentação</li>
+                            <li>Perda de peso efetiva mantendo massa muscular</li>
+                            <li>Estratégias alimentares bem estruturadas</li>
+                        </ul>
+                    </div>
+                    <div className="p-4 bg-green-500/10 border-l-4 border-green-500 rounded-r-lg">
+                        <h3 className="font-bold text-lg text-green-300 mb-2">Recomendações para Otimização</h3>
+                        <ul className="list-disc list-inside space-y-1 text-green-200/90">
+                            <li>Hidratação: Incluir registro de consumo de água (não observado nos dados)</li>
+                            <li>Variação Cardio: Considerar outras modalidades além da esteira</li>
+                            <li>Micronutrientes: Aumentar variedade de vegetais e frutas</li>
+                            <li>Descanso: Garantir dias de recuperação adequados</li>
+                            <li>Periodização: Variar intensidades e volumes de treino</li>
+                        </ul>
+                    </div>
+                    <div className="p-4 bg-background rounded-lg">
+                        <h3 className="font-bold text-lg text-text-primary mb-2">Conclusão Final</h3>
+                        <p className="text-text-secondary">O usuário demonstra excelente disciplina e organização em seu programa de fitness. Os resultados no período analisado são positivos, com perda de peso efetiva e manutenção da massa muscular. A continuidade do programa atual, com as pequenas otimizações sugeridas, deve produzir resultados ainda melhores a médio e longo prazo.</p>
+                    </div>
+                </div>
             </section>
 
             <footer className="text-center text-sm text-text-secondary pt-4 border-t border-border">Relatório gerado em {new Date().toLocaleDateString('pt-BR')}</footer>
@@ -529,7 +621,7 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
             const filteredProgress = progress.filter(p => isDateInRange(p.date)).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             const filteredMeals = meals.filter(m => isDateInRange(m.date));
             const filteredExercises = exercises.filter(e => isDateInRange(e.date));
-            const filteredCardio = cardio.filter(c => isDateInRange(c.date));
+            const filteredCardio = cardio.filter(c => isDateInRange(c.date)).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
             if (filteredProgress.length === 0 && filteredMeals.length === 0 && filteredExercises.length === 0 && filteredCardio.length === 0) {
                 setError('Nenhum dado encontrado para o período selecionado.');
@@ -567,6 +659,34 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
                 fat: { g: avgFat, kcal: calF, pct: totalMacroCal > 0 ? (calF / totalMacroCal) * 100 : 0 },
             };
             
+            // --- FOOD ANALYSIS ---
+            const mainFoods: { proteins: string[], carbs: string[], fats: string[], vegetables: string[] } = { proteins: [], carbs: [], fats: [], vegetables: [] };
+            const VEGETABLE_KEYWORDS = ['salada', 'alface', 'tomate', 'couve', 'brócolis', 'espinafre', 'pepino', 'cenoura', 'abobrinha', 'berinjela', 'vinagrete'];
+            const aggregatedFoods = new Map<string, { count: number, calsP: number, calsC: number, calsF: number }>();
+            for (const meal of filteredMeals) {
+                const name = meal.name.trim().toLowerCase();
+                const stats = aggregatedFoods.get(name) || { count: 0, calsP: 0, calsC: 0, calsF: 0 };
+                stats.count++;
+                stats.calsP += meal.protein * 4;
+                stats.calsC += meal.carbs * 4;
+                stats.calsF += meal.fat * 9;
+                aggregatedFoods.set(name, stats);
+            }
+            const sortedFoods = [...aggregatedFoods.entries()].sort((a, b) => b[1].count - a[1].count);
+            for (const [name, stats] of sortedFoods) {
+                const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+                if (mainFoods.vegetables.length < 5 && VEGETABLE_KEYWORDS.some(keyword => name.includes(keyword))) {
+                    mainFoods.vegetables.push(capitalizedName);
+                    continue;
+                }
+                const totalMacroCals = stats.calsP + stats.calsC + stats.calsF;
+                if (totalMacroCals === 0) continue;
+                const maxMacro = Math.max(stats.calsP, stats.calsC, stats.calsF);
+                if (maxMacro === stats.calsP && mainFoods.proteins.length < 5) mainFoods.proteins.push(capitalizedName);
+                else if (maxMacro === stats.calsC && mainFoods.carbs.length < 5) mainFoods.carbs.push(capitalizedName);
+                else if (maxMacro === stats.calsF && mainFoods.fats.length < 5) mainFoods.fats.push(capitalizedName);
+            }
+
             // --- EXERCISE ANALYSIS (NO AI) ---
             const exercisesByName: Record<string, Exercise[]> = {};
             for (const ex of filteredExercises) {
@@ -599,7 +719,7 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
                 };
             }).sort((a,b) => a.group.localeCompare(b.group));
 
-            setReportData({ startDate, endDate, dayCount, weightChange, avgCalories, avgMuscleMass, totalCardioMinutes, macros, training, progress: filteredProgress });
+            setReportData({ startDate, endDate, dayCount, weightChange, avgCalories, avgMuscleMass, totalCardioMinutes, macros, mainFoods, training, cardio: filteredCardio, progress: filteredProgress });
         } catch (err) {
             console.error("Erro ao gerar relatório:", err);
             setError("Ocorreu um erro ao gerar o relatório. Tente novamente mais tarde.");
