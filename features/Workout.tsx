@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Exercise, ExerciseTemplate, WorkoutSession } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
@@ -45,6 +44,12 @@ const PencilIcon = (props: React.SVGProps<SVGSVGElement>) => (
 const CheckIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
+);
+
+const HistoryIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
 );
 
@@ -101,6 +106,7 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isEditingCalories, setIsEditingCalories] = useState(true);
   const [calorieInput, setCalorieInput] = useState('');
+  const [lastExercise, setLastExercise] = useState<Exercise | null>(null);
   const isMobile = useIsMobile();
 
   const exerciseTemplateNames = useMemo(() => exerciseTemplates.map(t => t.name), [exerciseTemplates]);
@@ -122,6 +128,24 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         return () => clearTimeout(timer);
     }
   }, [feedback]);
+
+  useEffect(() => {
+    if (formData.name.trim() === '') {
+        setLastExercise(null);
+        return;
+    }
+
+    const exerciseNameLower = formData.name.trim().toLowerCase();
+    const allMatchingExercises = exercises
+        .filter(ex => ex.name.trim().toLowerCase() === exerciseNameLower)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    if (allMatchingExercises.length > 0) {
+        setLastExercise(allMatchingExercises[0]);
+    } else {
+        setLastExercise(null);
+    }
+  }, [formData.name, exercises]);
 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -302,6 +326,26 @@ export const Workout: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     </datalist>
                  )}
             </div>
+            {lastExercise ? (
+                <div className="p-3 bg-background rounded-md border border-border text-sm">
+                    <h3 className="font-semibold text-text-secondary flex items-center mb-2">
+                        <HistoryIcon className="w-4 h-4 mr-2" />
+                        Último Registro:
+                    </h3>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-text-primary">
+                        <p><strong className="font-normal text-text-secondary">Carga:</strong> {lastExercise.load} kg</p>
+                        <p><strong className="font-normal text-text-secondary">Séries:</strong> {lastExercise.sets}</p>
+                        <p><strong className="font-normal text-text-secondary">Reps:</strong> {lastExercise.reps}</p>
+                        {(lastExercise.technique || lastExercise.notes) && (
+                            <p className="col-span-2"><strong className="font-normal text-text-secondary">Notas:</strong> {lastExercise.technique || lastExercise.notes}</p>
+                        )}
+                    </div>
+                </div>
+            ) : formData.name.trim() !== '' && (
+                <div className="p-3 bg-background rounded-md border border-border text-sm text-text-secondary">
+                    <p>Primeira vez registrando este exercício.</p>
+                </div>
+            )}
             <Input label="Séries" name="sets" type="number" step="any" value={formData.sets} onChange={handleChange} required onFocus={e => e.target.select()}/>
             <Input label="Repetições" name="reps" type="number" step="any" value={formData.reps} onChange={handleChange} required onFocus={e => e.target.select()}/>
             <Input label="Carga (kg)" name="load" type="number" step="0.1" value={formData.load} onChange={handleChange} required onFocus={e => e.target.select()}/>
