@@ -1,10 +1,10 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { User, ProgressLog, Exercise, Meal, Cardio, AllUserData, BackupData, MealTemplate, ExerciseTemplate } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
-import { Card, Input, Button, Select, Modal } from '../components/ui';
-import { checkAchievements, exportToCsv, hasTodayLog, exportAllDataToJson } from '../services/dataService';
+import { Card, Input, Button, Select, Modal, Spinner } from '../components/ui';
+import { checkAchievements, exportToCsv, hasTodayLog, exportAllDataToJson, getTodayISO } from '../services/dataService';
+import { categorizeExercises } from '../services/geminiService';
 import { useTheme } from '../hooks/useTheme';
 
 const parseNumber = (value: string | number): number => {
@@ -362,6 +362,260 @@ const ProgressView: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 };
 
 // ====================================================================================
+// Report Generator Components (NEW)
+// ====================================================================================
+
+interface ReportData {
+    startDate: string;
+    endDate: string;
+    dayCount: number;
+    weightChange: number;
+    avgCalories: number;
+    avgMuscleMass: number;
+    totalCardioMinutes: number;
+    macros: {
+        protein: { g: number; kcal: number; pct: number };
+        carbs: { g: number; kcal: number; pct: number };
+        fat: { g: number; kcal: number; pct: number };
+    };
+    training: { group: string; exercises: string; maxLoad: number; avgVolume: number }[];
+    progress: ProgressLog[];
+}
+
+const ReportView: React.FC<{ data: ReportData }> = ({ data }) => {
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        // Adjust for timezone when creating the date object to avoid off-by-one day errors
+        const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+        const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
+        return adjustedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+
+    return (
+        <Card className="!p-6 sm:!p-8 space-y-8 print:shadow-none">
+            <div className="text-center">
+                <h1 className="text-2xl md:text-3xl font-bold text-text-primary">Relatório de Fitness e Nutrição</h1>
+                <p className="text-text-secondary mt-1">Período Analisado: {formatDate(data.startDate)} a {formatDate(data.endDate)} ({data.dayCount} dias)</p>
+            </div>
+
+            <section>
+                <h2 className="text-xl font-bold text-text-primary border-l-4 border-primary pl-3 mb-4">Resumo Executivo</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div className="bg-background p-4 rounded-lg">
+                        <p className={`text-3xl font-bold ${data.weightChange <= 0 ? 'text-green-500' : 'text-red-500'}`}>{data.weightChange.toFixed(1)} kg</p>
+                        <p className="text-sm text-text-secondary font-medium">PERDA DE PESO</p>
+                    </div>
+                    <div className="bg-background p-4 rounded-lg">
+                        <p className="text-3xl font-bold text-blue-400">{data.avgCalories.toFixed(0)}</p>
+                        <p className="text-sm text-text-secondary font-medium">KCAL/DIA (MÉDIA)</p>
+                    </div>
+                    <div className="bg-background p-4 rounded-lg">
+                        <p className="text-3xl font-bold text-blue-400">{data.avgMuscleMass > 0 ? data.avgMuscleMass.toFixed(1) : '-'} kg</p>
+                        <p className="text-sm text-text-secondary font-medium">MASSA MUSCULAR (MÉDIA)</p>
+                    </div>
+                    <div className="bg-background p-4 rounded-lg">
+                        <p className="text-3xl font-bold text-blue-400">{data.totalCardioMinutes}</p>
+                        <p className="text-sm text-text-secondary font-medium">CARDIO TOTAL (min)</p>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 className="text-xl font-bold text-text-primary border-l-4 border-primary pl-3 mb-4">Análise Nutricional</h2>
+                <div className="overflow-x-auto"><table className="min-w-full">
+                    <thead className="bg-background"><tr className="text-left text-sm font-semibold text-text-secondary">
+                        <th className="py-2 px-4">Macronutriente</th><th className="py-2 px-4">Quantidade (g)</th>
+                        <th className="py-2 px-4">Calorias</th><th className="py-2 px-4">% Total</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr className="border-b border-border"><td className="py-2 px-4">Proteínas</td><td className="py-2 px-4">{data.macros.protein.g.toFixed(1)}</td><td className="py-2 px-4">{data.macros.protein.kcal.toFixed(0)}</td><td className="py-2 px-4">{data.macros.protein.pct.toFixed(0)}%</td></tr>
+                        <tr className="border-b border-border"><td className="py-2 px-4">Carboidratos</td><td className="py-2 px-4">{data.macros.carbs.g.toFixed(1)}</td><td className="py-2 px-4">{data.macros.carbs.kcal.toFixed(0)}</td><td className="py-2 px-4">{data.macros.carbs.pct.toFixed(0)}%</td></tr>
+                        <tr><td className="py-2 px-4">Gorduras</td><td className="py-2 px-4">{data.macros.fat.g.toFixed(1)}</td><td className="py-2 px-4">{data.macros.fat.kcal.toFixed(0)}</td><td className="py-2 px-4">{data.macros.fat.pct.toFixed(0)}%</td></tr>
+                    </tbody>
+                </table></div>
+            </section>
+
+            <section>
+                <h2 className="text-xl font-bold text-text-primary border-l-4 border-primary pl-3 mb-4">Análise de Exercícios</h2>
+                <div className="overflow-x-auto"><table className="min-w-full">
+                    <thead className="bg-background"><tr className="text-left text-sm font-semibold text-text-secondary">
+                        <th className="py-2 px-4">Grupo Muscular</th><th className="py-2 px-4">Exercícios</th>
+                        <th className="py-2 px-4">Carga Máxima (kg)</th><th className="py-2 px-4">Volume Médio (kg)</th>
+                    </tr></thead>
+                    <tbody>{data.training.map(t => <tr key={t.group} className="border-b border-border">
+                        <td className="py-2 px-4 font-semibold">{t.group}</td><td className="py-2 px-4 text-sm">{t.exercises}</td>
+                        <td className="py-2 px-4">{t.maxLoad.toFixed(1)}</td><td className="py-2 px-4">{t.avgVolume.toFixed(0)}</td>
+                    </tr>)}
+                    {data.training.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-text-secondary">Nenhum treino de musculação registrado no período.</td></tr>}
+                    </tbody>
+                </table></div>
+            </section>
+
+            <section>
+                <h2 className="text-xl font-bold text-text-primary border-l-4 border-primary pl-3 mb-4">Progresso Corporal</h2>
+                <div className="overflow-x-auto"><table className="min-w-full">
+                    <thead className="bg-background"><tr className="text-left text-sm font-semibold text-text-secondary">
+                        <th className="py-2 px-4">Data</th><th className="py-2 px-4">Peso (kg)</th><th className="py-2 px-4">Gordura Corporal (%)</th>
+                        <th className="py-2 px-4">Massa Muscular (kg)</th><th className="py-2 px-4">Metabolismo (kcal)</th>
+                    </tr></thead>
+                    <tbody>{data.progress.map(p => <tr key={p.id} className="border-b border-border">
+                        <td className="py-2 px-4">{formatDate(p.date)}</td><td className="py-2 px-4">{p.weight > 0 ? p.weight.toFixed(1) : '-'}</td>
+                        <td className="py-2 px-4">{p.bodyFat && p.bodyFat > 0 ? p.bodyFat.toFixed(1) : '-'}</td>
+                        <td className="py-2 px-4">{p.muscleMass && p.muscleMass > 0 ? p.muscleMass.toFixed(1) : '-'}</td>
+                        <td className="py-2 px-4">{p.metabolism && p.metabolism > 0 ? p.metabolism.toFixed(0) : '-'}</td>
+                    </tr>)}
+                     {data.progress.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-text-secondary">Nenhuma medição corporal registrada no período.</td></tr>}
+                    </tbody>
+                </table></div>
+            </section>
+
+            <footer className="text-center text-sm text-text-secondary pt-4 border-t border-border">Relatório gerado em {new Date().toLocaleDateString('pt-BR')}</footer>
+        </Card>
+    );
+};
+
+
+const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [activePeriod, setActivePeriod] = useState<string | null>('weekly');
+    const [reportData, setReportData] = useState<ReportData | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const [meals] = useLocalStorage<Meal[]>(`meals_${currentUser.id}`, []);
+    const [exercises] = useLocalStorage<Exercise[]>(`exercises_${currentUser.id}`, []);
+    const [cardio] = useLocalStorage<Cardio[]>(`cardio_${currentUser.id}`, []);
+    const [progress] = useLocalStorage<ProgressLog[]>(`progress_${currentUser.id}`, []);
+
+    const handleSetPeriod = (period: 'daily' | 'weekly' | 'biweekly' | 'monthly') => {
+        setActivePeriod(period);
+        const end = new Date();
+        let start = new Date();
+        
+        if (period === 'daily') start.setDate(end.getDate() - 0);
+        else if (period === 'weekly') start.setDate(end.getDate() - 6);
+        else if (period === 'biweekly') start.setDate(end.getDate() - 13);
+        else if (period === 'monthly') start.setMonth(end.getMonth() - 1);
+        
+        // Format to YYYY-MM-DD for input[type=date]
+        const formatDateForInput = (d: Date) => d.toISOString().split('T')[0];
+        setStartDate(formatDateForInput(start));
+        setEndDate(formatDateForInput(end));
+    };
+
+    // Set initial period on mount
+    useEffect(() => {
+        handleSetPeriod('weekly');
+    }, []);
+
+    const handleGenerateReport = async () => {
+        if (!startDate || !endDate) {
+            setError('Por favor, selecione um período válido.');
+            return;
+        }
+        setError('');
+        setIsLoading(true);
+        setReportData(null);
+
+        const start = new Date(startDate);
+        start.setHours(0,0,0,0);
+        const end = new Date(endDate);
+        end.setHours(23,59,59,999);
+        
+        // --- DATA FILTERING ---
+        const isDateInRange = (iso: string) => { const d = new Date(iso); return d >= start && d <= end; };
+        const filteredProgress = progress.filter(p => isDateInRange(p.date)).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const filteredMeals = meals.filter(m => isDateInRange(m.date));
+        const filteredExercises = exercises.filter(e => isDateInRange(e.date));
+        const filteredCardio = cardio.filter(c => isDateInRange(c.date));
+
+        if (filteredProgress.length === 0 && filteredMeals.length === 0 && filteredExercises.length === 0 && filteredCardio.length === 0) {
+            setError('Nenhum dado encontrado para o período selecionado.');
+            setIsLoading(false);
+            return;
+        }
+
+        // --- CALCULATIONS ---
+        const dayCount = Math.round((end.getTime() - start.getTime()) / (1000 * 3600 * 24));
+        
+        const firstWeight = filteredProgress.find(p => p.weight > 0)?.weight || 0;
+        const lastWeight = [...filteredProgress].reverse().find(p => p.weight > 0)?.weight || firstWeight;
+        const weightChange = (firstWeight > 0 && lastWeight > 0) ? (lastWeight - firstWeight) : 0;
+        
+        const validMuscleMassLogs = filteredProgress.filter(p => p.muscleMass && p.muscleMass > 0);
+        const avgMuscleMass = validMuscleMassLogs.length > 0 ? validMuscleMassLogs.reduce((sum, p) => sum + p.muscleMass!, 0) / validMuscleMassLogs.length : 0;
+        
+        const totalCardioMinutes = filteredCardio.reduce((sum, c) => sum + c.duration, 0);
+
+        const mealDays = new Set(filteredMeals.map(m => new Date(m.date).toDateString())).size || 1;
+        const totalCalories = filteredMeals.reduce((sum, m) => sum + m.calories, 0);
+        const avgCalories = totalCalories / mealDays;
+
+        const totalProtein = filteredMeals.reduce((sum, m) => sum + m.protein, 0);
+        const totalCarbs = filteredMeals.reduce((sum, m) => sum + m.carbs, 0);
+        const totalFat = filteredMeals.reduce((sum, m) => sum + m.fat, 0);
+        const avgProtein = totalProtein / mealDays;
+        const avgCarbs = totalCarbs / mealDays;
+        const avgFat = totalFat / mealDays;
+        const calP = avgProtein * 4, calC = avgCarbs * 4, calF = avgFat * 9;
+        const totalMacroCal = calP + calC + calF;
+        const macros = {
+            protein: { g: avgProtein, kcal: calP, pct: totalMacroCal > 0 ? (calP / totalMacroCal) * 100 : 0 },
+            carbs: { g: avgCarbs, kcal: calC, pct: totalMacroCal > 0 ? (calC / totalMacroCal) * 100 : 0 },
+            fat: { g: avgFat, kcal: calF, pct: totalMacroCal > 0 ? (calF / totalMacroCal) * 100 : 0 },
+        };
+        
+        // --- AI EXERCISE ANALYSIS ---
+        const uniqueExNames = [...new Set(filteredExercises.map(e => e.name))];
+        const exCategories = await categorizeExercises(uniqueExNames);
+        const trainingByGroup: Record<string, { exercises: Set<string>, maxLoad: number, totalVolume: number, count: number }> = {};
+        for(const ex of filteredExercises) {
+            const group = exCategories[ex.name] || 'Outro';
+            if (!trainingByGroup[group]) trainingByGroup[group] = { exercises: new Set(), maxLoad: 0, totalVolume: 0, count: 0 };
+            const entry = trainingByGroup[group];
+            entry.exercises.add(ex.name);
+            if (ex.load > entry.maxLoad) entry.maxLoad = ex.load;
+            entry.totalVolume += ex.sets * ex.reps * ex.load;
+            entry.count++;
+        }
+        const training = Object.entries(trainingByGroup).map(([group, data]) => ({
+            group,
+            exercises: [...data.exercises].join(', '),
+            maxLoad: data.maxLoad,
+            avgVolume: data.count > 0 ? data.totalVolume / data.count : 0
+        })).sort((a,b) => a.group.localeCompare(b.group));
+
+        setReportData({ startDate, endDate, dayCount, weightChange, avgCalories, avgMuscleMass, totalCardioMinutes, macros, training, progress: filteredProgress });
+        setIsLoading(false);
+    };
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <h2 className="text-xl font-bold text-text-primary mb-4">Gerar Relatório</h2>
+                <div className="flex flex-wrap gap-2 mb-4">
+                    <button onClick={() => handleSetPeriod('daily')} className={`px-4 py-2 text-sm rounded-md font-medium ${activePeriod === 'daily' ? 'bg-primary text-white' : 'bg-background hover:bg-border'}`}>Diário</button>
+                    <button onClick={() => handleSetPeriod('weekly')} className={`px-4 py-2 text-sm rounded-md font-medium ${activePeriod === 'weekly' ? 'bg-primary text-white' : 'bg-background hover:bg-border'}`}>Semanal</button>
+                    <button onClick={() => handleSetPeriod('biweekly')} className={`px-4 py-2 text-sm rounded-md font-medium ${activePeriod === 'biweekly' ? 'bg-primary text-white' : 'bg-background hover:bg-border'}`}>Quinzenal</button>
+                    <button onClick={() => handleSetPeriod('monthly')} className={`px-4 py-2 text-sm rounded-md font-medium ${activePeriod === 'monthly' ? 'bg-primary text-white' : 'bg-background hover:bg-border'}`}>Mensal</button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <Input label="Data de Início" type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setActivePeriod(null); }} />
+                    <Input label="Data de Fim" type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setActivePeriod(null); }} />
+                    <Button onClick={handleGenerateReport} disabled={isLoading} className="w-full h-fit">
+                        {isLoading ? <Spinner /> : 'Gerar Relatório'}
+                    </Button>
+                </div>
+                {error && <p className="text-center mt-4 text-red-500 text-sm">{error}</p>}
+            </Card>
+
+            {reportData && <ReportView data={reportData} />}
+        </div>
+    );
+};
+
+// ====================================================================================
 // Main Analysis View Components
 // ====================================================================================
 
@@ -571,18 +825,18 @@ const AdminTab: React.FC<{ users: User[], createUser: (u: string, p: string) => 
     )
 }
 
-// FIX: Define Tab type to be used in the component state.
-type Tab = 'Progresso' | 'Conquistas' | 'Gerenciar Dados' | 'Admin';
+type Tab = 'Progresso' | 'Conquistas' | 'Gerar Relatório' | 'Gerenciar Dados' | 'Admin';
 
 export const Analysis: React.FC<{ currentUser: User, allUsers: User[], createUser: (u: string, p: string) => Promise<boolean> }> = ({ currentUser, allUsers, createUser }) => {
   const [activeTab, setActiveTab] = useState<Tab>('Progresso');
-  const TABS: Tab[] = ['Progresso', 'Conquistas', 'Gerenciar Dados'];
+  const TABS: Tab[] = ['Progresso', 'Conquistas', 'Gerar Relatório', 'Gerenciar Dados'];
   if (currentUser.isAdmin) TABS.push('Admin');
 
   const renderTabContent = () => {
     switch(activeTab) {
         case 'Progresso': return <ProgressView currentUser={currentUser} />;
         case 'Conquistas': return <AchievementsTab currentUser={currentUser} />;
+        case 'Gerar Relatório': return <ReportGeneratorTab currentUser={currentUser} />;
         case 'Gerenciar Dados': return <ManageDataTab currentUser={currentUser} />;
         case 'Admin': return <AdminTab users={allUsers} createUser={createUser} />;
         default: return null;
