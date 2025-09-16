@@ -227,10 +227,12 @@ const PerformanceTab: React.FC<{ exercises: Exercise[] }> = ({ exercises }) => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="min-w-0">
                     <h3 className="font-semibold mb-2">Progressão de Carga</h3>
-                    <Select value={selectedExercise} onChange={e => setSelectedExercise(e.target.value)} className="mb-4">
-                        <option value="">Selecione um exercício</option>
-                        {uniqueExercises.map(ex => <option key={ex} value={ex}>{ex}</option>)}
-                    </Select>
+                    <div className="w-full overflow-hidden">
+                        <Select value={selectedExercise} onChange={e => setSelectedExercise(e.target.value)} className="mb-4">
+                            <option value="">Selecione um exercício</option>
+                            {uniqueExercises.map(ex => <option key={ex} value={ex}>{ex}</option>)}
+                        </Select>
+                    </div>
                     {loadProgressionData.length > 1 ? (
                         <ResponsiveContainer width="100%" height={250}>
                             <LineChart data={loadProgressionData}>
@@ -337,7 +339,7 @@ type ProgressSubTab = 'Evolução Corporal' | 'Minhas Medidas' | 'Performance do
 const progressSubTabs: ProgressSubTab[] = ['Evolução Corporal', 'Minhas Medidas', 'Performance do Treino', 'Registrar Medidas'];
 
 const ProgressView: React.FC<{ currentUser: User }> = ({ currentUser }) => {
-    const [activeSubTab, setActiveSubTab] = useState<ProgressSubTab>('Performance do Treino');
+    const [activeSubTab, setActiveSubTab] = useState<ProgressSubTab>('Evolução Corporal');
     const [progress, setProgress] = useLocalStorage<ProgressLog[]>(`progress_${currentUser.id}`, []);
     const [exercises] = useLocalStorage<Exercise[]>(`exercises_${currentUser.id}`, []);
 
@@ -611,10 +613,11 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
         setReportData(null);
 
         try {
-            const start = new Date(startDate);
-            start.setHours(0,0,0,0);
-            const end = new Date(endDate);
-            end.setHours(23,59,59,999);
+            // FIX: Constructing the date this way avoids timezone issues where 'YYYY-MM-DD'
+            // is parsed as UTC midnight, which can be the previous day in some timezones.
+            // By adding time information, we ensure it's parsed in the user's local timezone.
+            const start = new Date(`${startDate}T00:00:00`);
+            const end = new Date(`${endDate}T23:59:59.999`);
             
             // --- DATA FILTERING ---
             const isDateInRange = (iso: string) => { const d = new Date(iso); return d >= start && d <= end; };
@@ -1082,7 +1085,7 @@ const AdminTab: React.FC<{ users: User[], createUser: (u: string, p: string) => 
 type Tab = 'Progresso' | 'Conquistas' | 'Gerar Relatório' | 'Gerenciar Dados' | 'Admin';
 
 export const Analysis: React.FC<{ currentUser: User, allUsers: User[], createUser: (u: string, p: string) => Promise<boolean> }> = ({ currentUser, allUsers, createUser }) => {
-  const [activeTab, setActiveTab] = useState<Tab>('Progresso');
+  const [activeTab, setActiveTab] = useState<Tab>('Gerar Relatório');
   const TABS: Tab[] = ['Progresso', 'Conquistas', 'Gerar Relatório', 'Gerenciar Dados'];
   if (currentUser.isAdmin) TABS.push('Admin');
 
