@@ -114,7 +114,7 @@ const BodyEvolutionTab: React.FC<{ progress: ProgressLog[] }> = ({ progress }) =
                         <Tooltip contentStyle={{ backgroundColor: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, color: chartColors.text }} />
                         <Legend />
                         <Line yAxisId="left" type="monotone" dataKey="Peso" stroke={chartColors.primary} strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
-                        <Line yAxisId="left" type="monotone" dataKey="Massa Muscular" stroke={chartColors.danger} strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
+                        <Line yAxisId="right" type="monotone" dataKey="Massa Muscular" stroke={chartColors.danger} strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
                         <Line yAxisId="right" type="monotone" dataKey="Gordura Corporal" stroke={chartColors.secondary} strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
                     </LineChart>
                 </ResponsiveContainer>
@@ -225,7 +225,7 @@ const PerformanceTab: React.FC<{ exercises: Exercise[] }> = ({ exercises }) => {
         <Card>
             <h2 className="text-xl font-bold mb-4">Performance de Treino</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div>
+                <div className="min-w-0">
                     <h3 className="font-semibold mb-2">Progressão de Carga</h3>
                     <Select value={selectedExercise} onChange={e => setSelectedExercise(e.target.value)} className="mb-4">
                         <option value="">Selecione um exercício</option>
