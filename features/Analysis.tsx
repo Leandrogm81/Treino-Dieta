@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import type { User, ProgressLog, Exercise, Meal, Cardio, AllUserData, BackupData, MealTemplate, ExerciseTemplate } from '../types';
+import type { User, ProgressLog, Exercise, Meal, Cardio, AllUserData, BackupData, MealTemplate, ExerciseTemplate, WaterLog, StepLog, WorkoutSession } from '../types';
 import { useLocalStorage } from '../hooks/useAuth';
 import { Card, Input, Button, Select, Modal, Spinner } from '../components/ui';
 import { checkAchievements, exportToCsv, hasTodayLog, exportAllDataToJson, getTodayISO } from '../services/dataService';
@@ -895,6 +895,9 @@ const ManageDataTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const [progress, setProgress] = useLocalStorage<ProgressLog[]>(`progress_${currentUser.id}`, []);
     const [mealTemplates, setMealTemplates] = useLocalStorage<MealTemplate[]>(`mealTemplates_${currentUser.id}`, []);
     const [exerciseTemplates, setExerciseTemplates] = useLocalStorage<ExerciseTemplate[]>(`exerciseTemplates_${currentUser.id}`, []);
+    const [waterLogs, setWaterLogs] = useLocalStorage<WaterLog[]>(`water_${currentUser.id}`, []);
+    const [stepLogs, setStepLogs] = useLocalStorage<StepLog[]>(`steps_${currentUser.id}`, []);
+    const [workoutSessions, setWorkoutSessions] = useLocalStorage<WorkoutSession[]>(`workoutSessions_${currentUser.id}`, []);
     
     const [importFeedback, setImportFeedback] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -908,6 +911,9 @@ const ManageDataTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             progress,
             mealTemplates,
             exerciseTemplates,
+            waterLogs,
+            stepLogs,
+            workoutSessions,
         };
         exportAllDataToJson(backupData, `backup_${currentUser.username}.json`);
     };
@@ -929,7 +935,10 @@ const ManageDataTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                 
                 const data = JSON.parse(text) as BackupData;
 
-                const requiredKeys: (keyof BackupData)[] = ['meals', 'exercises', 'cardio', 'progress', 'mealTemplates', 'exerciseTemplates'];
+                const requiredKeys: (keyof BackupData)[] = [
+                    'meals', 'exercises', 'cardio', 'progress', 'mealTemplates', 
+                    'exerciseTemplates', 'waterLogs', 'stepLogs', 'workoutSessions'
+                ];
                 const hasAllKeys = requiredKeys.every(key => key in data && Array.isArray(data[key]));
                 
                 if (!hasAllKeys) {
@@ -943,6 +952,9 @@ const ManageDataTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                     setProgress(data.progress || []);
                     setMealTemplates(data.mealTemplates || []);
                     setExerciseTemplates(data.exerciseTemplates || []);
+                    setWaterLogs(data.waterLogs || []);
+                    setStepLogs(data.stepLogs || []);
+                    setWorkoutSessions(data.workoutSessions || []);
                     
                     setImportFeedback('Dados importados com sucesso! A página será recarregada para aplicar as alterações.');
                     setTimeout(() => window.location.reload(), 2000);
@@ -986,6 +998,8 @@ const ManageDataTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                      <Button variant="danger" onClick={() => confirmDelete('exercises', 'Histórico de Treinos', () => setExercises([]))}>Apagar Treinos</Button>
                      <Button variant="danger" onClick={() => confirmDelete('cardio', 'Histórico de Cardio', () => setCardio([]))}>Apagar Cardio</Button>
                      <Button variant="danger" onClick={() => confirmDelete('progress', 'Histórico de Medições', () => setProgress([]))}>Apagar Medições</Button>
+                     <Button variant="danger" onClick={() => confirmDelete('water', 'Histórico de Hidratação', () => setWaterLogs([]))}>Apagar Hidratação</Button>
+                     <Button variant="danger" onClick={() => confirmDelete('steps', 'Histórico de Passos', () => setStepLogs([]))}>Apagar Passos</Button>
                      <Button variant="danger" onClick={() => confirmDelete('mealTemplates', 'Modelos de Refeição', () => setMealTemplates([]))}>Apagar Modelos (Nutrição)</Button>
                      <Button variant="danger" onClick={() => confirmDelete('exerciseTemplates', 'Modelos de Treino', () => setExerciseTemplates([]))}>Apagar Modelos (Treino)</Button>
                 </div>

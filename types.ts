@@ -1,4 +1,3 @@
-
 import type { ReactNode } from 'react';
 
 export interface User {
@@ -110,6 +109,9 @@ export interface BackupData {
     progress: ProgressLog[];
     mealTemplates: MealTemplate[];
     exerciseTemplates: ExerciseTemplate[];
+    waterLogs: WaterLog[];
+    stepLogs: StepLog[];
+    workoutSessions: WorkoutSession[];
 }
 
 export interface UserGoals {
