@@ -344,7 +344,7 @@ const ProgressView: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     return (
         <div className="space-y-4">
             <div className="border-b border-border">
-                <nav className="-mb-px flex justify-center space-x-2 sm:space-x-4 overflow-x-auto">
+                <nav className="-mb-px flex sm:justify-center space-x-2 sm:space-x-4 overflow-x-auto">
                     {progressSubTabs.map(tab => (
                         <SubTabButton key={tab} label={tab} isActive={activeSubTab === tab} onClick={() => setActiveSubTab(tab)} />
                     ))}
@@ -535,8 +535,8 @@ const ReportView: React.FC<{ data: ReportData }> = ({ data }) => {
                 <h2 className="text-xl font-bold text-text-primary border-l-4 border-primary pl-3 mb-4">Recomendações e Conclusões</h2>
                 <div className="space-y-6">
                     <div className="p-4 bg-green-500/10 border-l-4 border-green-500 rounded-r-lg">
-                        <h3 className="font-bold text-lg text-green-300 mb-2">Pontos Positivos</h3>
-                        <ul className="list-disc list-inside space-y-1 text-green-200/90">
+                        <h3 className="font-bold text-lg text-green-600 dark:text-green-300 mb-2">Pontos Positivos</h3>
+                        <ul className="list-disc list-inside space-y-1 text-green-700 dark:text-green-200/90">
                             <li>Excelente aderência ao programa de exercícios</li>
                             <li>Registro detalhado e consistente da alimentação</li>
                             <li>Perda de peso efetiva mantendo massa muscular</li>
@@ -544,8 +544,8 @@ const ReportView: React.FC<{ data: ReportData }> = ({ data }) => {
                         </ul>
                     </div>
                     <div className="p-4 bg-green-500/10 border-l-4 border-green-500 rounded-r-lg">
-                        <h3 className="font-bold text-lg text-green-300 mb-2">Recomendações para Otimização</h3>
-                        <ul className="list-disc list-inside space-y-1 text-green-200/90">
+                        <h3 className="font-bold text-lg text-green-600 dark:text-green-300 mb-2">Recomendações para Otimização</h3>
+                        <ul className="list-disc list-inside space-y-1 text-green-700 dark:text-green-200/90">
                             <li>Hidratação: Incluir registro de consumo de água (não observado nos dados)</li>
                             <li>Variação Cardio: Considerar outras modalidades além da esteira</li>
                             <li>Micronutrientes: Aumentar variedade de vegetais e frutas</li>
