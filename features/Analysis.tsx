@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { User, ProgressLog, Exercise, Meal, Cardio, AllUserData, BackupData, MealTemplate, ExerciseTemplate, WaterLog, StepLog, WorkoutSession } from '../types';
@@ -1035,10 +1036,22 @@ const ManageDataTab: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     );
 }
 
-const AdminTab: React.FC<{ users: User[], createUser: (u: string, p: string) => Promise<boolean> }> = ({ users, createUser }) => {
+const AdminTab: React.FC<{ 
+    users: User[], 
+    createUser: (u: string, p: string) => Promise<boolean>,
+    resetUserPassword: (userId: string) => Promise<{ success: boolean; tempPass?: string; }>
+}> = ({ users, createUser, resetUserPassword }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [message, setMessage] = useState('');
+    const [resetMessage, setResetMessage] = useState('');
+
+    useEffect(() => {
+        if (resetMessage) {
+            const timer = setTimeout(() => setResetMessage(''), 4000);
+            return () => clearTimeout(timer);
+        }
+    }, [resetMessage]);
 
     const handleCreateUser = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1052,6 +1065,17 @@ const AdminTab: React.FC<{ users: User[], createUser: (u: string, p: string) => 
             setMessage(`Erro: Usuário ${username} já existe.`);
         }
     }
+
+    const handleResetPassword = async (userId: string, targetUsername: string) => {
+        if (window.confirm(`Tem certeza que deseja redefinir a senha para o usuário "${targetUsername}"?`)) {
+            const result = await resetUserPassword(userId);
+            if (result.success) {
+                setResetMessage(`Senha de ${targetUsername} redefinida para: ${result.tempPass}`);
+            } else {
+                setResetMessage(`Erro ao redefinir a senha de ${targetUsername}.`);
+            }
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -1068,11 +1092,21 @@ const AdminTab: React.FC<{ users: User[], createUser: (u: string, p: string) => 
                 </Card>
                 <Card>
                     <h3 className="text-xl font-bold mb-4">Usuários Cadastrados</h3>
+                    {resetMessage && <p className="mb-4 text-center text-sm text-green-400">{resetMessage}</p>}
                     <ul className="space-y-2 max-h-60 overflow-y-auto">
                         {users.map(user => (
                             <li key={user.id} className="flex justify-between items-center bg-background p-2 rounded-md">
-                                <span>{user.username}</span>
-                                <span className="text-xs font-mono px-2 py-1 rounded bg-gray-700">{user.isAdmin ? 'Admin' : 'Usuário'}</span>
+                                <div>
+                                    <span>{user.username}</span>
+                                    {user.forcePasswordChange && <span className="block text-xs text-yellow-400">Pendente de troca de senha</span>}
+                                </div>
+                                {user.isAdmin ? (
+                                    <span className="text-xs font-mono px-2 py-1 rounded bg-secondary">Admin</span>
+                                ) : (
+                                    <Button onClick={() => handleResetPassword(user.id, user.username)} variant="secondary" className="px-2 py-1 text-xs">
+                                        Redefinir Senha
+                                    </Button>
+                                )}
                             </li>
                         ))}
                     </ul>
@@ -1084,7 +1118,12 @@ const AdminTab: React.FC<{ users: User[], createUser: (u: string, p: string) => 
 
 type Tab = 'Progresso' | 'Conquistas' | 'Gerar Relatório' | 'Gerenciar Dados' | 'Admin';
 
-export const Analysis: React.FC<{ currentUser: User, allUsers: User[], createUser: (u: string, p: string) => Promise<boolean> }> = ({ currentUser, allUsers, createUser }) => {
+export const Analysis: React.FC<{ 
+  currentUser: User, 
+  allUsers: User[], 
+  createUser: (u: string, p: string) => Promise<boolean>,
+  resetUserPassword: (userId: string) => Promise<{ success: boolean; tempPass?: string; }>
+}> = ({ currentUser, allUsers, createUser, resetUserPassword }) => {
   const [activeTab, setActiveTab] = useState<Tab>('Gerar Relatório');
   const TABS: Tab[] = ['Progresso', 'Conquistas', 'Gerar Relatório', 'Gerenciar Dados'];
   if (currentUser.isAdmin) TABS.push('Admin');
@@ -1095,7 +1134,7 @@ export const Analysis: React.FC<{ currentUser: User, allUsers: User[], createUse
         case 'Conquistas': return <AchievementsTab currentUser={currentUser} />;
         case 'Gerar Relatório': return <ReportGeneratorTab currentUser={currentUser} />;
         case 'Gerenciar Dados': return <ManageDataTab currentUser={currentUser} />;
-        case 'Admin': return <AdminTab users={allUsers} createUser={createUser} />;
+        case 'Admin': return <AdminTab users={allUsers} createUser={createUser} resetUserPassword={resetUserPassword} />;
         default: return null;
     }
   }

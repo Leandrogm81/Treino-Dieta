@@ -12,7 +12,7 @@ import { NAV_ITEMS } from './constants';
 import type { NavItemType } from './constants';
 
 const App: React.FC = () => {
-  const { authState, login, logout, createAdmin, createUser, changePassword } = useAuth();
+  const { authState, login, logout, createAdmin, createUser, changePassword, changeOwnPassword, resetUserPassword } = useAuth();
   const [activePage, setActivePage] = useState<NavItemType>('Dashboard');
 
   if (authState.status === 'NO_USERS') {
@@ -39,7 +39,7 @@ const App: React.FC = () => {
         case 'Cardio':
           return <Cardio currentUser={authState.currentUser} />;
         case 'Progresso':
-          return <Analysis currentUser={authState.currentUser} allUsers={authState.users} createUser={createUser} />;
+          return <Analysis currentUser={authState.currentUser} allUsers={authState.users} createUser={createUser} resetUserPassword={resetUserPassword} />;
         default:
           return <Dashboard currentUser={authState.currentUser} />;
       }
@@ -51,6 +51,7 @@ const App: React.FC = () => {
         logout={logout}
         activePage={activePage}
         setActivePage={setActivePage}
+        changeOwnPassword={changeOwnPassword}
       >
         {renderContent()}
       </Layout>

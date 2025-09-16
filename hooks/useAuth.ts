@@ -102,5 +102,35 @@ export const useAuth = () => {
       return true;
   }, [currentUser, setUsers, setCurrentUser]);
 
-  return { authState, login, logout, createAdmin, createUser, changePassword };
+  const changeOwnPassword = useCallback(async (currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
+    if (!currentUser) return { success: false, message: 'Nenhum usuário logado.' };
+    
+    const currentPasswordHash = await simpleHash(currentPassword);
+    if (currentUser.passwordHash !== currentPasswordHash) {
+        return { success: false, message: 'A senha atual está incorreta.' };
+    }
+    
+    const newPasswordHash = await simpleHash(newPassword);
+    const updatedUser = { ...currentUser, passwordHash: newPasswordHash, forcePasswordChange: false };
+    
+    setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
+    setCurrentUser(updatedUser);
+    
+    return { success: true, message: 'Senha alterada com sucesso!' };
+  }, [currentUser, setUsers, setCurrentUser]);
+
+  const resetUserPassword = useCallback(async (userId: string): Promise<{ success: boolean; tempPass?: string }> => {
+      const userToReset = users.find(u => u.id === userId);
+      if (!userToReset || userToReset.isAdmin) return { success: false };
+
+      const temporaryPass = 'mudar1234';
+      const passwordHash = await simpleHash(temporaryPass);
+      const updatedUser: User = { ...userToReset, passwordHash, forcePasswordChange: true };
+      
+      setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+      
+      return { success: true, tempPass: temporaryPass };
+  }, [users, setUsers]);
+
+  return { authState, login, logout, createAdmin, createUser, changePassword, changeOwnPassword, resetUserPassword };
 };
