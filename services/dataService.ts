@@ -1,132 +1,91 @@
+// src/services/dataService.ts
+import {
+  addDoc, collection, deleteDoc, doc, getDocs, orderBy, query,
+  serverTimestamp, updateDoc
+} from 'firebase/firestore';
+import { auth, db } from './firebase';
 
-import { ACHIEVEMENTS_DEFINITIONS } from '../constants';
-import type { AllUserData, Achievement } from '../types';
+type BaseDoc = { id?: string; date?: number; [k: string]: any };
 
-export const checkAchievements = (data: AllUserData): Achievement[] => {
-    return ACHIEVEMENTS_DEFINITIONS.map(def => ({
-        ...def,
-        unlocked: def.condition(data)
-    }));
-};
+// ---------- Helpers ----------
+function userCol(uid: string, coll: string) {
+  return collection(db, 'users', uid, coll);
+}
 
-/**
- * Converte uma string de data ISO UTC para uma string ISO com o fuso horário de São Paulo (UTC-3).
- * @param isoUtcString A data em formato ISO (ex: '2023-10-27T12:00:00.000Z').
- * @returns A data formatada com o offset do Brasil (ex: '2023-10-27T09:00:00-03:00').
- */
-const toBrazilianISOString = (isoUtcString: string): string => {
-    // Não converte valores que não sejam strings
-    if (typeof isoUtcString !== 'string') return isoUtcString;
-    try {
-        const date = new Date(isoUtcString);
-        // Só converte strings de data ISO válidas
-        if (isNaN(date.getTime()) || !isoUtcString.includes('T')) {
-            return isoUtcString;
-        }
+async function ensureUid(): Promise<string | null> {
+  const u = auth.currentUser;
+  return u?.uid ?? null;
+}
 
-        const timeZone = 'America/Sao_Paulo';
-        
-        const year = date.toLocaleString('en-CA', { timeZone, year: 'numeric' });
-        const month = date.toLocaleString('en-CA', { timeZone, month: '2-digit' });
-        const day = date.toLocaleString('en-CA', { timeZone, day: '2-digit' });
-        // Lida com o caso da meia-noite, onde a hora pode ser "24" em alguns ambientes
-        const hour = date.toLocaleString('en-CA', { timeZone, hour: '2-digit', hour12: false }).padStart(2, '0').replace('24', '00');
-        const minute = date.toLocaleString('en-CA', { timeZone, minute: '2-digit' }).padStart(2, '0');
-        const second = date.toLocaleString('en-CA', { timeZone, second: '2-digit' }).padStart(2, '0');
-        
-        // O Brasil não observa horário de verão desde 2019, tornando UTC-3 um offset estável.
-        const offset = '-03:00';
+function lsKey(coll: string) { return `__ls_${coll}`; }
+function lsRead<T = BaseDoc>(coll: string): T[] {
+  try { return JSON.parse(localStorage.getItem(lsKey(coll)) || '[]'); } catch { return []; }
+}
+function lsWrite<T = BaseDoc>(coll: string, arr: T[]) {
+  localStorage.setItem(lsKey(coll), JSON.stringify(arr));
+}
 
-        return `${year}-${month}-${day}T${hour}:${minute}:${second}${offset}`;
-    } catch (e) {
-        // Se ocorrer algum erro, retorna a string original para evitar perda de dados
-        return isoUtcString;
+// ---------- CRUD genérico por coleção do usuário ----------
+export function crudFor<T extends BaseDoc = BaseDoc>(collectionName: string) {
+  return {
+    async list(): Promise<T[]> {
+      const uid = await ensureUid();
+      if (!uid) return lsRead<T>(collectionName);
+      const q = query(userCol(uid, collectionName), orderBy('date', 'desc'));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<T, 'id'>) })) as T[];
+    },
+    async add(docBody: Omit<T, 'id'>): Promise<string> {
+      const uid = await ensureUid();
+      if (!uid) {
+        const arr = lsRead<T>(collectionName);
+        const id = String(Date.now());
+        arr.unshift({ ...(docBody as any), id });
+        lsWrite(collectionName, arr);
+        return id;
+      }
+      const ref = await addDoc(userCol(uid, collectionName), { ...docBody, createdAt: serverTimestamp() });
+      return ref.id;
+    },
+    async update(id: string, patch: Partial<T>): Promise<void> {
+      const uid = await ensureUid();
+      if (!uid) {
+        const arr = lsRead<T>(collectionName);
+        const idx = arr.findIndex((d: any) => d.id === id);
+        if (idx >= 0) { arr[idx] = { ...arr[idx], ...patch }; lsWrite(collectionName, arr); }
+        return;
+      }
+      await updateDoc(doc(db, 'users', uid, collectionName, id), patch as any);
+    },
+    async remove(id: string): Promise<void> {
+      const uid = await ensureUid();
+      if (!uid) {
+        const arr = lsRead<T>(collectionName);
+        lsWrite(collectionName, arr.filter((d: any) => d.id !== id));
+        return;
+      }
+      await deleteDoc(doc(db, 'users', uid, collectionName, id));
     }
+  };
+}
+
+// ---------- Atalhos prontos ----------
+export type Meal = {
+  id?: string;
+  date: number;      // epoch ms
+  name: string;
+  protein: number;
+  carbs: number;
+  fat: number;
+  calories: number;
 };
 
+export const mealsApi    = crudFor<Meal>('meals');
+export const workoutsApi = crudFor('workouts');
+export const cardioApi   = crudFor('cardio');
 
-const convertToCSV = <T extends object,>(data: T[]): string => {
-    if (data.length === 0) return '';
-    const headers = Object.keys(data[0]);
-    const csvRows = [headers.join(',')];
-    data.forEach(item => {
-        const values = headers.map(header => {
-            let value = (item as any)[header];
-            // Converte a data para o fuso horário brasileiro antes de adicionar ao CSV
-            if (header === 'date' && typeof value === 'string') {
-                value = toBrazilianISOString(value);
-            }
-            if (typeof value === 'string' && value.includes(',')) {
-                return `"${value}"`;
-            }
-            return value;
-        });
-        csvRows.push(values.join(','));
-    });
-    return csvRows.join('\n');
-};
-
-export const exportToCsv = <T extends object,>(data: T[], filename: string) => {
-    const csvString = convertToCSV(data);
-    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', filename);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
-};
-
-export const exportAllDataToJson = (data: object, filename: string) => {
-    // Usa a função 'replacer' do JSON.stringify para formatar as datas
-    const jsonString = JSON.stringify(data, (key, value) => {
-        if (key === 'date' && typeof value === 'string') {
-            return toBrazilianISOString(value);
-        }
-        return value;
-    }, 2);
-
-    const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
-    const link = document.createElement('a');
-    if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', filename);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
-};
-
-const brazilDateFormatter = new Intl.DateTimeFormat('fr-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-});
-
-export const getTodayISO = () => {
-    return brazilDateFormatter.format(new Date());
-};
-
-export const getTodayData = <T extends { date: string },>(data: T[]) => {
-    const today = getTodayISO();
-    return data.filter(item => {
-        // Converts item's UTC date to Brazil's date string for comparison
-        const itemDateInBrazil = brazilDateFormatter.format(new Date(item.date));
-        return itemDateInBrazil === today;
-    });
-};
-
-export const hasTodayLog = <T extends { date: string },>(data: T[]): boolean => {
-    const today = getTodayISO();
-    return data.some(item => {
-        const itemDateInBrazil = brazilDateFormatter.format(new Date(item.date));
-        return itemDateInBrazil === today;
-    });
-};
+// ---------- Conveniências (se suas telas preferem funções soltas) ----------
+export const listMeals   = () => mealsApi.list();
+export const addMeal     = (m: Omit<Meal, 'id'>) => mealsApi.add(m);
+export const updateMeal  = (id: string, p: Partial<Meal>) => mealsApi.update(id, p);
+export const deleteMeal  = (id: string) => mealsApi.remove(id);
