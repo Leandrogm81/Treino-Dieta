@@ -13,17 +13,21 @@ import type { NavItemType } from './constants';
 // App.tsx
 import { migrateLocalToFirestore } from './services/migrateLocal';
 
-// ...
-React.useEffect(() => {
-  if (authState.status === 'LOGGED_IN') {
-    migrateLocalToFirestore();
-  }
-}, [authState.status]);
 
 
 const App: React.FC = () => {
   const { authState, login, logout, createAdmin, createUser, changePassword, changeOwnPassword, resetUserPassword } = useAuth();
   const [activePage, setActivePage] = useState<NavItemType>('Dashboard');
+  const ranMigrationRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (authState.status === 'LOGGED_IN' && !ranMigrationRef.current) {
+      ranMigrationRef.current = true;
+      migrateLocalToFirestore().catch(err => {
+        console.error('Falha ao migrar dados locais para o Firestore:', err);
+      });
+    }
+  }, [authState.status]);
 
   if (authState.status === 'NO_USERS') {
     return <AuthView mode="ADMIN_SETUP" createAdmin={createAdmin} />;
