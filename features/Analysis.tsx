@@ -389,18 +389,156 @@ interface ReportData {
     training: { group: string; exercises: string; maxLoad: number; avgVolume: number }[];
     cardio: Cardio[];
     progress: ProgressLog[];
+    analysis: {
+        behavioralPatterns: {
+            diet: string[];
+            training: string[];
+        };
+        conclusions: {
+            positives: string[];
+            recommendations: string[];
+            summary: string;
+        };
+    };
 }
+
+const generateAnalysis = (
+    data: {
+        filteredProgress: ProgressLog[];
+        filteredMeals: Meal[];
+        filteredExercises: Exercise[];
+        filteredCardio: Cardio[];
+        filteredWater: WaterLog[];
+        dayCount: number;
+        weightChange: number;
+        macros: ReportData['macros'];
+        mainFoods: ReportData['mainFoods'];
+    }
+): ReportData['analysis'] => {
+    const { filteredProgress, filteredMeals, filteredExercises, filteredCardio, filteredWater, dayCount, weightChange, macros } = data;
+
+    const analysis: ReportData['analysis'] = {
+        behavioralPatterns: { diet: [], training: [] },
+        conclusions: { positives: [], recommendations: [], summary: '' }
+    };
+
+    // --- Diet Patterns ---
+    if (macros.protein.pct > 25) {
+        analysis.behavioralPatterns.diet.push('Alta ingestão de proteínas, o que favorece a saciedade e a manutenção de massa muscular.');
+    }
+    const mealDaysSet = new Set(filteredMeals.map(m => new Date(m.date).toDateString()));
+    const firstMealsByDay: Record<string, number> = {};
+    for (const meal of filteredMeals) {
+        const day = new Date(meal.date).toDateString();
+        const hour = new Date(meal.date).getHours();
+        if (!firstMealsByDay[day] || hour < firstMealsByDay[day]) {
+            firstMealsByDay[day] = hour;
+        }
+    }
+    const avgFirstMealHour = Object.values(firstMealsByDay).reduce((sum, h) => sum + h, 0) / Object.keys(firstMealsByDay).length;
+    if (avgFirstMealHour >= 11) {
+        analysis.behavioralPatterns.diet.push('Padrão alimentar sugere a prática de jejum intermitente, com a primeira refeição ocorrendo mais tarde no dia.');
+    }
+    if (data.mainFoods.proteins.find(p => p.toLowerCase().includes('whey'))) {
+        analysis.behavioralPatterns.diet.push('Uso de suplementação proteica (whey protein) para complementar a dieta.');
+    }
+
+    // --- Training Patterns ---
+    const trainingDays = new Set(filteredExercises.map(e => new Date(e.date).toDateString()));
+    const trainingFrequency = dayCount > 0 ? trainingDays.size / dayCount : 0;
+    if (trainingFrequency >= 0.5) {
+        analysis.behavioralPatterns.training.push(`Consistência notável, com treinos realizados em ${Math.round(trainingFrequency * 100)}% dos dias do período.`);
+    } else if (trainingDays.size > 0) {
+        analysis.behavioralPatterns.training.push(`Frequência de treino moderada, com ${trainingDays.size} sessões registradas em ${dayCount} dias.`);
+    }
+
+    const exerciseCount: Record<string, number> = {};
+    filteredExercises.forEach(e => { exerciseCount[e.name] = (exerciseCount[e.name] || 0) + 1; });
+    const mostFrequentExercise = Object.keys(exerciseCount).sort((a, b) => exerciseCount[b] - exerciseCount[a])[0];
+    if (mostFrequentExercise) {
+        const logs = filteredExercises.filter(e => e.name === mostFrequentExercise).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        if (logs.length > 1) {
+            const firstLoad = logs[0].load;
+            const lastLoad = logs[logs.length - 1].load;
+            if (lastLoad > firstLoad) {
+                analysis.behavioralPatterns.training.push(`Progressão de carga observada em exercícios chave como "${mostFrequentExercise}".`);
+            }
+        }
+    }
+
+    if (dayCount > 0 && (filteredCardio.length / dayCount * 7 >= 2)) {
+        analysis.behavioralPatterns.training.push('Realização regular de atividades cardiovasculares complementares ao treino de força.');
+    }
+
+    // --- Positives ---
+    if (weightChange < -0.1) {
+        analysis.conclusions.positives.push(`Perda de peso efetiva de ${Math.abs(weightChange).toFixed(1)} kg no período.`);
+        const firstMuscleMass = filteredProgress.find(p => p.muscleMass && p.muscleMass > 0)?.muscleMass || 0;
+        const lastMuscleMass = [...filteredProgress].reverse().find(p => p.muscleMass && p.muscleMass > 0)?.muscleMass || 0;
+        if (firstMuscleMass > 0 && lastMuscleMass >= firstMuscleMass) {
+            analysis.conclusions.positives.push('Manutenção ou ganho de massa muscular durante o processo de emagrecimento, um excelente indicador.');
+        }
+    } else if (weightChange > 0.1) {
+        analysis.conclusions.positives.push(`Ganho de peso de ${weightChange.toFixed(1)} kg, possivelmente alinhado com um objetivo de hipertrofia.`);
+    }
+
+    if (trainingFrequency >= 0.5) {
+        analysis.conclusions.positives.push('Excelente aderência e consistência com o programa de treinos.');
+    }
+    if (dayCount > 0 && mealDaysSet.size / dayCount > 0.8) {
+         analysis.conclusions.positives.push('Registro detalhado e consistente da alimentação.');
+    }
+
+    // --- Recommendations ---
+    if (filteredWater.length === 0) {
+        analysis.conclusions.recommendations.push('Considerar o registro do consumo de água para monitorar a hidratação, que é crucial para performance e saúde.');
+    }
+    const uniqueFoods = new Set(filteredMeals.map(m => m.name.toLowerCase()));
+    if (uniqueFoods.size > 0 && dayCount > 0 && uniqueFoods.size < (dayCount * 1.5)) {
+        analysis.conclusions.recommendations.push('Aumentar a variedade de alimentos na dieta, especialmente fontes de micronutrientes como frutas e vegetais, para garantir um perfil nutricional completo.');
+    }
+    if (filteredCardio.length === 0 && filteredExercises.length > 0) {
+        analysis.conclusions.recommendations.push('Incluir atividades cardiovasculares na rotina para melhorar a saúde do coração e auxiliar nos objetivos de composição corporal.');
+    }
+    if (filteredProgress.length < 2) {
+         analysis.conclusions.recommendations.push('Realizar medições corporais (peso, medidas) com maior frequência para obter um feedback mais claro sobre a evolução.');
+    }
+
+    // --- Summary ---
+    let summary = `No período de ${dayCount} dias, o usuário demonstrou `;
+    if (analysis.conclusions.positives.length > 0) {
+        summary += `${analysis.conclusions.positives[0].toLowerCase().replace('.', '')}. `;
+    } else {
+        summary += `progresso em seus registros. `;
+    }
+    if (weightChange !== 0) {
+        const changeDesc = weightChange < 0 ? `uma redução de ${Math.abs(weightChange).toFixed(1)} kg no peso corporal` : `um aumento de ${weightChange.toFixed(1)} kg no peso corporal`;
+        summary += `Os dados indicam ${changeDesc}. `;
+    } else if (filteredProgress.length > 0) {
+        summary += `O peso corporal permaneceu estável. `;
+    }
+    if (analysis.conclusions.recommendations.length > 0) {
+        summary += `Para otimizar os resultados, recomenda-se ${analysis.conclusions.recommendations[0].toLowerCase().replace('.', '')}.`;
+    } else {
+        summary += `A continuidade das estratégias atuais tende a manter os bons resultados.`;
+    }
+    analysis.conclusions.summary = summary;
+
+    if(analysis.behavioralPatterns.diet.length === 0) analysis.behavioralPatterns.diet.push("Nenhum padrão alimentar específico identificado nos dados.");
+    if(analysis.behavioralPatterns.training.length === 0) analysis.behavioralPatterns.training.push("Nenhum padrão de treino específico identificado nos dados.");
+    if(analysis.conclusions.positives.length === 0) analysis.conclusions.positives.push("A consistência no registro é o primeiro passo para o sucesso.");
+    if(analysis.conclusions.recommendations.length === 0) analysis.conclusions.recommendations.push("Continuar com o bom trabalho e manter a consistência nos registros e treinos.");
+
+    return analysis;
+};
 
 const ReportView: React.FC<{ data: ReportData }> = ({ data }) => {
     const formatDate = (dateString: string) => {
-        // Handles both 'YYYY-MM-DD' and full ISO strings correctly for São Paulo time.
         if (dateString.length === 10 && !dateString.includes('T')) {
-             // It's 'YYYY-MM-DD'. To avoid timezone issues, treat as UTC.
              return new Date(dateString + 'T12:00:00Z').toLocaleDateString('pt-BR', {
                  day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'
              });
         }
-        // It's a full ISO string. Format it in São Paulo timezone.
         return new Date(dateString).toLocaleDateString('pt-BR', {
             day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo'
         });
@@ -517,54 +655,42 @@ const ReportView: React.FC<{ data: ReportData }> = ({ data }) => {
                 {data.cardio.length > 0 && <p className="mt-4 text-sm text-text-secondary"><strong>Total no Período:</strong> {data.totalCardioMinutes} minutos de atividade cardiovascular, queimando aproximadamente {totalCardioCalories} calorias.</p>}
             </section>
 
-             <section>
+            <section>
                 <h2 className="text-xl font-bold text-text-primary border-l-4 border-primary pl-3 mb-4">Padrões Comportamentais Identificados</h2>
                 <div className="space-y-4">
                     <div>
                         <h3 className="text-lg font-semibold text-text-primary mb-2">Estratégias Alimentares</h3>
                         <ul className="list-disc list-inside space-y-1 text-text-secondary">
-                            <li>Jejum Intermitente: Uso frequente de café preto sem açúcar nas manhãs.</li>
-                            <li>Alta Ingestão Proteica: Presença constante de fontes proteicas em todas as refeições.</li>
-                            <li>Suplementação Estratégica: Uso regular de whey protein para complementar as proteínas.</li>
+                            {data.analysis.behavioralPatterns.diet.map((item, index) => <li key={`diet-${index}`}>{item}</li>)}
                         </ul>
                     </div>
                     <div>
                         <h3 className="text-lg font-semibold text-text-primary mb-2">Padrões de Treinamento</h3>
                         <ul className="list-disc list-inside space-y-1 text-text-secondary">
-                            <li>Consistência: Treinamento regular com poucos dias de descanso.</li>
-                            <li>Progressão: Anotações sobre aumentar cargas e repetições.</li>
-                            <li>Variedade: Diferentes exercícios para cada grupo muscular.</li>
-                            <li>Cardio Complementar: Atividade aeróbica após musculação.</li>
+                             {data.analysis.behavioralPatterns.training.map((item, index) => <li key={`train-${index}`}>{item}</li>)}
                         </ul>
                     </div>
                 </div>
             </section>
 
-             <section>
+            <section>
                 <h2 className="text-xl font-bold text-text-primary border-l-4 border-primary pl-3 mb-4">Recomendações e Conclusões</h2>
                 <div className="space-y-6">
                     <div className="p-4 bg-green-500/10 border-l-4 border-green-500 rounded-r-lg">
                         <h3 className="font-bold text-lg text-green-600 dark:text-green-300 mb-2">Pontos Positivos</h3>
                         <ul className="list-disc list-inside space-y-1 text-green-700 dark:text-green-200/90">
-                            <li>Excelente aderência ao programa de exercícios</li>
-                            <li>Registro detalhado e consistente da alimentação</li>
-                            <li>Perda de peso efetiva mantendo massa muscular</li>
-                            <li>Estratégias alimentares bem estruturadas</li>
+                            {data.analysis.conclusions.positives.map((item, index) => <li key={`pos-${index}`}>{item}</li>)}
                         </ul>
                     </div>
-                    <div className="p-4 bg-green-500/10 border-l-4 border-green-500 rounded-r-lg">
-                        <h3 className="font-bold text-lg text-green-600 dark:text-green-300 mb-2">Recomendações para Otimização</h3>
-                        <ul className="list-disc list-inside space-y-1 text-green-700 dark:text-green-200/90">
-                            <li>Hidratação: Incluir registro de consumo de água (não observado nos dados)</li>
-                            <li>Variação Cardio: Considerar outras modalidades além da esteira</li>
-                            <li>Micronutrientes: Aumentar variedade de vegetais e frutas</li>
-                            <li>Descanso: Garantir dias de recuperação adequados</li>
-                            <li>Periodização: Variar intensidades e volumes de treino</li>
+                    <div className="p-4 bg-yellow-500/10 border-l-4 border-yellow-500 rounded-r-lg">
+                        <h3 className="font-bold text-lg text-yellow-600 dark:text-yellow-300 mb-2">Recomendações para Otimização</h3>
+                        <ul className="list-disc list-inside space-y-1 text-yellow-700 dark:text-yellow-200/90">
+                           {data.analysis.conclusions.recommendations.map((item, index) => <li key={`rec-${index}`}>{item}</li>)}
                         </ul>
                     </div>
                     <div className="p-4 bg-background rounded-lg">
                         <h3 className="font-bold text-lg text-text-primary mb-2">Conclusão Final</h3>
-                        <p className="text-text-secondary">O usuário demonstra excelente disciplina e organização em seu programa de fitness. Os resultados no período analisado são positivos, com perda de peso efetiva e manutenção da massa muscular. A continuidade do programa atual, com as pequenas otimizações sugeridas, deve produzir resultados ainda melhores a médio e longo prazo.</p>
+                        <p className="text-text-secondary">{data.analysis.conclusions.summary}</p>
                     </div>
                 </div>
             </section>
@@ -588,6 +714,7 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
     const [exercises] = useLocalStorage<Exercise[]>(`exercises_${currentUser.id}`, []);
     const [cardio] = useLocalStorage<Cardio[]>(`cardio_${currentUser.id}`, []);
     const [progress] = useLocalStorage<ProgressLog[]>(`progress_${currentUser.id}`, []);
+    const [waterLogs] = useLocalStorage<WaterLog[]>(`water_${currentUser.id}`, []);
 
     const handleSetPeriod = (period: 'daily' | 'weekly' | 'biweekly' | 'monthly') => {
         setActivePeriod(period);
@@ -599,13 +726,11 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
         else if (period === 'biweekly') start.setDate(end.getDate() - 13);
         else if (period === 'monthly') start.setMonth(end.getMonth() - 1);
         
-        // Format to YYYY-MM-DD for input[type=date]
         const formatDateForInput = (d: Date) => d.toISOString().split('T')[0];
         setStartDate(formatDateForInput(start));
         setEndDate(formatDateForInput(end));
     };
 
-    // Set initial period on mount
     useEffect(() => {
         handleSetPeriod('weekly');
     }, []);
@@ -619,19 +744,15 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
         setIsLoading(true);
         setReportData(null);
         
-        // This formatter is the key to consistency with the rest of the app.
         const spDateFormatter = new Intl.DateTimeFormat('fr-CA', {
             timeZone: 'America/Sao_Paulo',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
+            year: 'numeric', month: '2-digit', day: '2-digit',
         });
 
         try {
-            const startStr = startDate; // "YYYY-MM-DD"
-            const endStr = endDate;   // "YYYY-MM-DD"
+            const startStr = startDate;
+            const endStr = endDate;
 
-            // --- DATA FILTERING ---
             const isDateStrInRange = (iso: string) => {
                 const itemDateStr = spDateFormatter.format(new Date(iso));
                 return itemDateStr >= startStr && itemDateStr <= endStr;
@@ -641,6 +762,7 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
             const filteredMeals = meals.filter(m => isDateStrInRange(m.date));
             const filteredExercises = exercises.filter(e => isDateStrInRange(e.date));
             const filteredCardio = cardio.filter(c => isDateStrInRange(c.date)).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            const filteredWater = waterLogs.filter(w => isDateStrInRange(w.date));
 
             if (filteredProgress.length === 0 && filteredMeals.length === 0 && filteredExercises.length === 0 && filteredCardio.length === 0) {
                 setError('Nenhum dado encontrado para o período selecionado.');
@@ -648,7 +770,6 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
                 return;
             }
 
-            // --- CALCULATIONS ---
             const startForCount = new Date(startDate + 'T12:00:00Z');
             const endForCount = new Date(endDate + 'T12:00:00Z');
             const dayCount = Math.max(1, Math.round((endForCount.getTime() - startForCount.getTime()) / (1000 * 60 * 60 * 24)) + 1);
@@ -680,7 +801,6 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
                 fat: { g: avgFat, kcal: calF, pct: totalMacroCal > 0 ? (calF / totalMacroCal) * 100 : 0 },
             };
             
-            // --- FOOD ANALYSIS ---
             const mainFoods: { proteins: string[], carbs: string[], fats: string[], vegetables: string[] } = { proteins: [], carbs: [], fats: [], vegetables: [] };
             const VEGETABLE_KEYWORDS = ['salada', 'alface', 'tomate', 'couve', 'brócolis', 'espinafre', 'pepino', 'cenoura', 'abobrinha', 'berinjela', 'vinagrete'];
             const aggregatedFoods = new Map<string, { count: number, calsP: number, calsC: number, calsF: number }>();
@@ -708,7 +828,6 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
                 else if (maxMacro === stats.calsF && mainFoods.fats.length < 5) mainFoods.fats.push(capitalizedName);
             }
 
-            // --- EXERCISE ANALYSIS (NO AI) ---
             const exercisesByName: Record<string, Exercise[]> = {};
             for (const ex of filteredExercises) {
                 if (!exercisesByName[ex.name]) {
@@ -719,28 +838,25 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
 
             const training = Object.entries(exercisesByName).map(([exerciseName, exLogs]) => {
                 const maxLoad = Math.max(0, ...exLogs.map(e => e.load));
-                
                 const volumeBySession: Record<string, number> = {};
                 for (const log of exLogs) {
                     const sessionDate = new Date(log.date).toDateString();
                     const currentVolume = volumeBySession[sessionDate] || 0;
                     volumeBySession[sessionDate] = currentVolume + (log.sets * log.reps * log.load);
                 }
-
                 const sessionVolumes = Object.values(volumeBySession);
                 const avgVolume = sessionVolumes.length > 0
                     ? sessionVolumes.reduce((sum, v) => sum + v, 0) / sessionVolumes.length
                     : 0;
 
                 return {
-                    group: exerciseName,
-                    exercises: exerciseName, // For data structure
-                    maxLoad: maxLoad,
-                    avgVolume: avgVolume
+                    group: exerciseName, exercises: exerciseName, maxLoad: maxLoad, avgVolume: avgVolume
                 };
             }).sort((a,b) => a.group.localeCompare(b.group));
 
-            setReportData({ startDate, endDate, dayCount, weightChange, avgCalories, avgMuscleMass, totalCardioMinutes, macros, mainFoods, training, cardio: filteredCardio, progress: filteredProgress });
+            const analysis = generateAnalysis({ filteredProgress, filteredMeals, filteredExercises, filteredCardio, filteredWater, dayCount, weightChange, macros, mainFoods });
+
+            setReportData({ startDate, endDate, dayCount, weightChange, avgCalories, avgMuscleMass, totalCardioMinutes, macros, mainFoods, training, cardio: filteredCardio, progress: filteredProgress, analysis });
         } catch (err) {
             console.error("Erro ao gerar relatório:", err);
             setError("Ocorreu um erro ao gerar o relatório. Tente novamente mais tarde.");
@@ -751,85 +867,35 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
 
     const handleExportHtml = () => {
         if (!reportRef.current || !reportData) return;
-
-        const tailwindStyles = document.getElementById('__tailwind')?.textContent || '';
-        const baseStyles = `
-            :root {
-                --color-primary: 20 184 166;
-                --color-primary-focus: 13 148 136;
-                --color-secondary: 99 102 241;
-                --color-secondary-focus: 79 70 229;
-                --color-background: 241 245 249;
-                --color-surface: 255 255 255;
-                --color-text-primary: 17 24 39;
-                --color-text-secondary: 107 114 128;
-                --color-border: 209 213 219;
-                --color-danger: 220 38 38;
-                --color-danger-focus: 185 28 28;
-            }
-            .dark {
-                --color-primary: 20 184 166;
-                --color-primary-focus: 13 148 136;
-                --color-secondary: 99 102 241;
-                --color-secondary-focus: 79 70 229;
-                --color-background: 17 24 39;
-                --color-surface: 31 41 55;
-                --color-text-primary: 249 250 251;
-                --color-text-secondary: 156 163 175;
-                --color-border: 55 65 81;
-                --color-danger: 220 38 38;
-                --color-danger-focus: 185 28 28;
-            }
-            body {
-                background-color: rgb(var(--color-background));
-                color: rgb(var(--color-text-primary));
-                font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-                padding: 2rem;
-            }
-            @media print {
-                body {
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
+        const tailwindStyles = Array.from(document.styleSheets)
+            .map(sheet => {
+                try {
+                    return Array.from(sheet.cssRules).map(rule => rule.cssText).join('');
+                } catch (e) {
+                    return '';
                 }
-            }
+            }).join('');
+
+        const baseStyles = `
+            :root { --color-primary: 20 184 166; --color-background: 241 245 249; --color-surface: 255 255 255; --color-text-primary: 17 24 39; --color-text-secondary: 107 114 128; --color-border: 209 213 219; /* ... other light vars */ }
+            .dark { --color-primary: 20 184 166; --color-background: 17 24 39; --color-surface: 31 41 55; --color-text-primary: 249 250 251; --color-text-secondary: 156 163 175; --color-border: 55 65 81; /* ... other dark vars */ }
+            body { background-color: rgb(var(--color-background)); color: rgb(var(--color-text-primary)); font-family: ui-sans-serif, system-ui, sans-serif; padding: 2rem; }
+            @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
         `;
 
         const reportHtml = reportRef.current.innerHTML;
         const themeClass = document.documentElement.className;
         const fullHtml = `
-            <!DOCTYPE html>
-            <html lang="pt-BR" class="${themeClass}">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Relatório FitTrack</title>
-                <style>
-                    ${baseStyles}
-                    ${tailwindStyles}
-                </style>
-            </head>
-            <body>
-                ${reportHtml}
-            </body>
-            </html>
+            <!DOCTYPE html><html lang="pt-BR" class="${themeClass}"><head><meta charset="UTF-8"><title>Relatório FitTrack</title><style>${baseStyles}${tailwindStyles}</style></head><body>${reportHtml}</body></html>
         `;
 
         const blob = new Blob([fullHtml.trim()], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-
-        const formatDateForFilename = (dateString: string) => {
-            const [year, month, day] = dateString.split('-');
-            return `${day}-${month}-${year}`;
-        }
-        const formattedStartDate = formatDateForFilename(reportData.startDate);
-        const formattedEndDate = formatDateForFilename(reportData.endDate);
-        
-        link.download = `Relatorio_FitTrack_${formattedStartDate}_a_${formattedEndDate}.html`;
+        const formatDateForFilename = (dateString: string) => dateString.split('-').reverse().join('-');
+        link.download = `Relatorio_FitTrack_${formatDateForFilename(reportData.startDate)}_a_${formatDateForFilename(reportData.endDate)}.html`;
         link.href = url;
-        document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
         URL.revokeObjectURL(url);
     };
 
