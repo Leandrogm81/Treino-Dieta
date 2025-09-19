@@ -393,11 +393,17 @@ interface ReportData {
 
 const ReportView: React.FC<{ data: ReportData }> = ({ data }) => {
     const formatDate = (dateString: string) => {
-        const date = new Date(dateString);
-        // Adjust for timezone when creating the date object to avoid off-by-one day errors
-        const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-        const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
-        return adjustedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        // Handles both 'YYYY-MM-DD' and full ISO strings correctly for São Paulo time.
+        if (dateString.length === 10 && !dateString.includes('T')) {
+             // It's 'YYYY-MM-DD'. To avoid timezone issues, treat as UTC.
+             return new Date(dateString + 'T12:00:00Z').toLocaleDateString('pt-BR', {
+                 day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'
+             });
+        }
+        // It's a full ISO string. Format it in São Paulo timezone.
+        return new Date(dateString).toLocaleDateString('pt-BR', {
+            day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo'
+        });
     };
 
     const totalCardioCalories = data.cardio.reduce((sum, c) => sum + c.calories, 0);
@@ -605,27 +611,36 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
     }, []);
 
     const handleGenerateReport = () => {
-        if (!startDate || !endDate) {
+        if (!startDate || !endDate || startDate > endDate) {
             setError('Por favor, selecione um período válido.');
             return;
         }
         setError('');
         setIsLoading(true);
         setReportData(null);
+        
+        // This formatter is the key to consistency with the rest of the app.
+        const spDateFormatter = new Intl.DateTimeFormat('fr-CA', {
+            timeZone: 'America/Sao_Paulo',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        });
 
         try {
-            // FIX: Constructing the date this way avoids timezone issues where 'YYYY-MM-DD'
-            // is parsed as UTC midnight, which can be the previous day in some timezones.
-            // By adding time information, we ensure it's parsed in the user's local timezone.
-            const start = new Date(`${startDate}T00:00:00`);
-            const end = new Date(`${endDate}T23:59:59.999`);
-            
+            const startStr = startDate; // "YYYY-MM-DD"
+            const endStr = endDate;   // "YYYY-MM-DD"
+
             // --- DATA FILTERING ---
-            const isDateInRange = (iso: string) => { const d = new Date(iso); return d >= start && d <= end; };
-            const filteredProgress = progress.filter(p => isDateInRange(p.date)).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-            const filteredMeals = meals.filter(m => isDateInRange(m.date));
-            const filteredExercises = exercises.filter(e => isDateInRange(e.date));
-            const filteredCardio = cardio.filter(c => isDateInRange(c.date)).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            const isDateStrInRange = (iso: string) => {
+                const itemDateStr = spDateFormatter.format(new Date(iso));
+                return itemDateStr >= startStr && itemDateStr <= endStr;
+            };
+            
+            const filteredProgress = progress.filter(p => isDateStrInRange(p.date)).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            const filteredMeals = meals.filter(m => isDateStrInRange(m.date));
+            const filteredExercises = exercises.filter(e => isDateStrInRange(e.date));
+            const filteredCardio = cardio.filter(c => isDateStrInRange(c.date)).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
             if (filteredProgress.length === 0 && filteredMeals.length === 0 && filteredExercises.length === 0 && filteredCardio.length === 0) {
                 setError('Nenhum dado encontrado para o período selecionado.');
@@ -634,7 +649,9 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
             }
 
             // --- CALCULATIONS ---
-            const dayCount = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 3600 * 24)));
+            const startForCount = new Date(startDate + 'T12:00:00Z');
+            const endForCount = new Date(endDate + 'T12:00:00Z');
+            const dayCount = Math.max(1, Math.round((endForCount.getTime() - startForCount.getTime()) / (1000 * 60 * 60 * 24)) + 1);
             
             const firstWeight = filteredProgress.find(p => p.weight > 0)?.weight || 0;
             const lastWeight = [...filteredProgress].reverse().find(p => p.weight > 0)?.weight || firstWeight;
@@ -644,8 +661,8 @@ const ReportGeneratorTab: React.FC<{ currentUser: User }> = ({ currentUser }) =>
             const avgMuscleMass = validMuscleMassLogs.length > 0 ? validMuscleMassLogs.reduce((sum, p) => sum + p.muscleMass!, 0) / validMuscleMassLogs.length : 0;
             
             const totalCardioMinutes = filteredCardio.reduce((sum, c) => sum + c.duration, 0);
-
-            const mealDays = new Set(filteredMeals.map(m => new Date(m.date).toDateString())).size || 1;
+            
+            const mealDays = new Set(filteredMeals.map(m => spDateFormatter.format(new Date(m.date)))).size || 1;
             const totalCalories = filteredMeals.reduce((sum, m) => sum + m.calories, 0);
             const avgCalories = totalCalories / mealDays;
 
