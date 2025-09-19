@@ -10,6 +10,16 @@ import { Cardio } from './features/Cardio';
 import { Analysis } from './features/Analysis';
 import { NAV_ITEMS } from './constants';
 import type { NavItemType } from './constants';
+// App.tsx
+import { migrateLocalToFirestore } from './services/migrateLocal';
+
+// ...
+React.useEffect(() => {
+  if (authState.status === 'LOGGED_IN') {
+    migrateLocalToFirestore();
+  }
+}, [authState.status]);
+
 
 const App: React.FC = () => {
   const { authState, login, logout, createAdmin, createUser, changePassword, changeOwnPassword, resetUserPassword } = useAuth();
