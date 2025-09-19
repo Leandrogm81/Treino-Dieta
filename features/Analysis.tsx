@@ -87,15 +87,15 @@ const BodyEvolutionTab: React.FC<{ progress: ProgressLog[] }> = ({ progress }) =
             .map(p => {
                 const weight = p.weight > 0 ? p.weight : 0;
                 const muscleMassKg = p.muscleMass && p.muscleMass > 0 && weight > 0
-                    ? (p.muscleMass / 100) * weight
+                    ? parseFloat(((p.muscleMass / 100) * weight).toFixed(2))
                     : null;
                 const bodyFatKg = p.bodyFat && p.bodyFat > 0 && weight > 0
-                    ? (p.bodyFat / 100) * weight
+                    ? parseFloat(((p.bodyFat / 100) * weight).toFixed(2))
                     : null;
 
                 return {
                     date: new Date(p.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' }),
-                    Peso: weight > 0 ? weight : null,
+                    Peso: weight > 0 ? parseFloat(weight.toFixed(2)) : null,
                     'Gordura Corporal': bodyFatKg,
                     'Massa Muscular': muscleMassKg,
                 };
