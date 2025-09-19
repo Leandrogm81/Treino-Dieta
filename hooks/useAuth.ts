@@ -1,136 +1,89 @@
+// src/hooks/useAuth.ts
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  createUserWithEmailAndPassword,
+  updatePassword,
+  type User as FirebaseUser,
+} from 'firebase/auth';
+import { auth, db } from '../services/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-import { useState, useEffect, useCallback } from 'react';
-import type { User } from '../types';
-
-// Simple hash function for demo purposes. In a real app, use a robust library like bcrypt.
-const simpleHash = async (password: string) => {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+export type AppUser = {
+  id: string;
+  username: string;       // email
+  isAdmin: boolean;
+  forcePasswordChange?: boolean;
 };
 
-type AuthState = 
-  | { status: 'LOADING' }
-  | { status: 'NO_USERS' }
-  | { status: 'LOGGED_OUT'; users: User[] }
-  | { status: 'LOGGED_IN'; currentUser: User; users: User[] }
-  | { status: 'FORCE_PASSWORD_CHANGE'; currentUser: User; users: User[] };
+type Status = 'LOGGED_OUT' | 'LOGGED_IN' | 'LOADING';
+type AuthState = { status: Status; currentUser: AppUser | null };
 
-export const useLocalStorage = <T,>(key: string, initialValue: T) => {
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    try {
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(error);
-      return initialValue;
-    }
-  });
+type Ctx = {
+  authState: AuthState;
+  login(email: string, password: string): Promise<void>;
+  logout(): Promise<void>;
+  signup(email: string, password: string): Promise<void>;
+  changePassword(newPassword: string): Promise<void>;
+  // Criar/listar usuários de Auth só com Admin SDK (backend). Aqui focamos no básico.
+  createUser(email: string, isAdmin?: boolean): Promise<void>;
+  getAllUsers(): Promise<AppUser[]>; // retorna ao menos o próprio usuário
+};
 
-  const setValue = (value: T | ((val: T) => T)) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.error(error);
-    }
+const AuthCtx = createContext<Ctx>({} as Ctx);
+
+async function toAppUser(fbUser: FirebaseUser | null): Promise<AppUser | null> {
+  if (!fbUser) return null;
+  const ref = doc(db, 'users', fbUser.uid);
+  const snap = await getDoc(ref);
+  const base: AppUser = {
+    id: fbUser.uid,
+    username: fbUser.email ?? 'sem-email',
+    isAdmin: false,
   };
+  if (!snap.exists()) {
+    await setDoc(ref, { username: base.username, isAdmin: false, createdAt: Date.now() });
+    return base;
+  }
+  const data = snap.data() as Partial<AppUser>;
+  return { ...base, ...data, id: fbUser.uid };
+}
 
-  return [storedValue, setValue] as const;
-};
-
-export const useAuth = () => {
-  const [users, setUsers] = useLocalStorage<User[]>('users', []);
-  const [currentUser, setCurrentUser] = useLocalStorage<User | null>('currentUser', null);
-  const [authState, setAuthState] = useState<AuthState>({ status: 'LOADING' });
+export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const [authState, setAuthState] = useState<AuthState>({ status: 'LOADING', currentUser: null });
 
   useEffect(() => {
-    if (currentUser) {
-        if(currentUser.forcePasswordChange) {
-            setAuthState({ status: 'FORCE_PASSWORD_CHANGE', currentUser, users });
-        } else {
-            setAuthState({ status: 'LOGGED_IN', currentUser, users });
-        }
-    } else if (users.length === 0) {
-      setAuthState({ status: 'NO_USERS' });
-    } else {
-      setAuthState({ status: 'LOGGED_OUT', users });
-    }
-  }, [currentUser, users]);
+    const unsub = onAuthStateChanged(auth, async (fbUser) => {
+      if (!fbUser) return setAuthState({ status: 'LOGGED_OUT', currentUser: null });
+      const appUser = await toAppUser(fbUser);
+      setAuthState({ status: 'LOGGED_IN', currentUser: appUser });
+    });
+    return () => unsub();
+  }, []);
 
-  const createAdmin = useCallback(async (username: string, password: string): Promise<boolean> => {
-    if (users.length > 0) return false;
-    const passwordHash = await simpleHash(password);
-    const admin: User = { id: crypto.randomUUID(), username, passwordHash, isAdmin: true, forcePasswordChange: false };
-    setUsers([admin]);
-    setCurrentUser(admin);
-    return true;
-  }, [users, setUsers, setCurrentUser]);
+  const api = useMemo<Ctx>(() => ({
+    authState,
+    async login(email, password) { await signInWithEmailAndPassword(auth, email, password); },
+    async logout() { await signOut(auth); },
+    async signup(email, password) {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await setDoc(doc(db, 'users', cred.user.uid), { username: email, isAdmin: false, createdAt: Date.now() });
+    },
+    async changePassword(newPassword) {
+      if (!auth.currentUser) throw new Error('Não autenticado');
+      await updatePassword(auth.currentUser, newPassword);
+    },
+    async createUser() {
+      throw new Error('Criar usuários via app requer backend (Admin SDK). Use o Firebase Console.');
+    },
+    async getAllUsers() {
+      return authState.currentUser ? [authState.currentUser] : [];
+    },
+  }), [authState]);
 
-  const createUser = useCallback(async (username: string, temporaryPass: string): Promise<boolean> => {
-     if (users.some(u => u.username === username)) return false;
-     const passwordHash = await simpleHash(temporaryPass);
-     const newUser: User = { id: crypto.randomUUID(), username, passwordHash, isAdmin: false, forcePasswordChange: true };
-     setUsers(prev => [...prev, newUser]);
-     return true;
-  }, [users, setUsers]);
-  
-  const login = useCallback(async (username: string, password: string): Promise<boolean> => {
-    const user = users.find(u => u.username === username);
-    if (!user) return false;
-    const passwordHash = await simpleHash(password);
-    if (user.passwordHash === passwordHash) {
-      setCurrentUser(user);
-      return true;
-    }
-    return false;
-  }, [users, setCurrentUser]);
-
-  const logout = useCallback(() => {
-    setCurrentUser(null);
-  }, [setCurrentUser]);
-
-  const changePassword = useCallback(async (password: string): Promise<boolean> => {
-      if(!currentUser) return false;
-      const passwordHash = await simpleHash(password);
-      const updatedUser = { ...currentUser, passwordHash, forcePasswordChange: false };
-      setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
-      setCurrentUser(updatedUser);
-      return true;
-  }, [currentUser, setUsers, setCurrentUser]);
-
-  const changeOwnPassword = useCallback(async (currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
-    if (!currentUser) return { success: false, message: 'Nenhum usuário logado.' };
-    
-    const currentPasswordHash = await simpleHash(currentPassword);
-    if (currentUser.passwordHash !== currentPasswordHash) {
-        return { success: false, message: 'A senha atual está incorreta.' };
-    }
-    
-    const newPasswordHash = await simpleHash(newPassword);
-    const updatedUser = { ...currentUser, passwordHash: newPasswordHash, forcePasswordChange: false };
-    
-    setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
-    setCurrentUser(updatedUser);
-    
-    return { success: true, message: 'Senha alterada com sucesso!' };
-  }, [currentUser, setUsers, setCurrentUser]);
-
-  const resetUserPassword = useCallback(async (userId: string): Promise<{ success: boolean; tempPass?: string }> => {
-      const userToReset = users.find(u => u.id === userId);
-      if (!userToReset || userToReset.isAdmin) return { success: false };
-
-      const temporaryPass = 'mudar1234';
-      const passwordHash = await simpleHash(temporaryPass);
-      const updatedUser: User = { ...userToReset, passwordHash, forcePasswordChange: true };
-      
-      setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
-      
-      return { success: true, tempPass: temporaryPass };
-  }, [users, setUsers]);
-
-  return { authState, login, logout, createAdmin, createUser, changePassword, changeOwnPassword, resetUserPassword };
+  return <AuthCtx.Provider value={api}>{children}</AuthCtx.Provider>;
 };
+
+export const useAuth = () => useContext(AuthCtx);
