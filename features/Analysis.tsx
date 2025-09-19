@@ -84,12 +84,22 @@ const BodyEvolutionTab: React.FC<{ progress: ProgressLog[] }> = ({ progress }) =
         return progress
             .filter(p => new Date(p.date) >= startDate)
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-            .map(p => ({
-                date: new Date(p.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' }),
-                Peso: p.weight > 0 ? p.weight : null,
-                'Gordura Corporal': p.bodyFat && p.bodyFat > 0 ? p.bodyFat : null,
-                'Massa Muscular': p.muscleMass && p.muscleMass > 0 ? p.muscleMass : null,
-            }));
+            .map(p => {
+                const weight = p.weight > 0 ? p.weight : 0;
+                const muscleMassKg = p.muscleMass && p.muscleMass > 0 && weight > 0
+                    ? (p.muscleMass / 100) * weight
+                    : null;
+                const bodyFatKg = p.bodyFat && p.bodyFat > 0 && weight > 0
+                    ? (p.bodyFat / 100) * weight
+                    : null;
+
+                return {
+                    date: new Date(p.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' }),
+                    Peso: weight > 0 ? weight : null,
+                    'Gordura Corporal': bodyFatKg,
+                    'Massa Muscular': muscleMassKg,
+                };
+            });
     }, [progress, timeRange]);
 
     return (
@@ -110,13 +120,12 @@ const BodyEvolutionTab: React.FC<{ progress: ProgressLog[] }> = ({ progress }) =
                     <LineChart data={filteredData}>
                         <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                         <XAxis dataKey="date" stroke={chartColors.text} />
-                        <YAxis stroke={chartColors.text} yAxisId="left" unit="kg" />
-                        <YAxis stroke={chartColors.text} yAxisId="right" orientation="right" unit="%" />
+                        <YAxis stroke={chartColors.text} unit="kg" />
                         <Tooltip contentStyle={{ backgroundColor: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, color: chartColors.text }} />
                         <Legend />
-                        <Line yAxisId="left" type="monotone" dataKey="Peso" stroke={chartColors.primary} strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
-                        <Line yAxisId="right" type="monotone" dataKey="Massa Muscular" stroke={chartColors.danger} strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
-                        <Line yAxisId="right" type="monotone" dataKey="Gordura Corporal" stroke={chartColors.secondary} strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
+                        <Line type="monotone" dataKey="Peso" stroke={chartColors.primary} strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
+                        <Line type="monotone" dataKey="Massa Muscular" stroke={chartColors.danger} strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
+                        <Line type="monotone" dataKey="Gordura Corporal" stroke={chartColors.secondary} strokeWidth={2} connectNulls activeDot={{ r: 8 }} />
                     </LineChart>
                 </ResponsiveContainer>
             ) : (
@@ -1207,7 +1216,7 @@ export const Analysis: React.FC<{
   createUser: (u: string, p: string) => Promise<boolean>,
   resetUserPassword: (userId: string) => Promise<{ success: boolean; tempPass?: string; }>
 }> = ({ currentUser, allUsers, createUser, resetUserPassword }) => {
-  const [activeTab, setActiveTab] = useState<Tab>('Gerar Relatório');
+  const [activeTab, setActiveTab] = useState<Tab>('Progresso');
   const TABS: Tab[] = ['Progresso', 'Conquistas', 'Gerar Relatório', 'Gerenciar Dados'];
   if (currentUser.isAdmin) TABS.push('Admin');
 
